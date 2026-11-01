@@ -893,7 +893,23 @@ import android.content.Intent
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val key = intent.getStringExtra("key") ?: return
-        Notifier.showAlarm(ctx, key, intent.getStringExtra("label").orEmpty())
+        val label = intent.getStringExtra("label").orEmpty()
+
+        // Уведомление с полноэкранным показом (работает, если разрешены уведомления)
+        Notifier.showAlarm(ctx, key, label)
+
+        // Дополнительно открываем экран задачи напрямую: будильник работает даже без уведомлений
+        try {
+            ctx.startActivity(
+                Intent(ctx, ChallengeActivity::class.java)
+                    .putExtra("key", key)
+                    .putExtra("label", label)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            // если система не разрешила, останется уведомление
+        }
+
         AlarmStore.afterFire(ctx, key)
     }
 }
@@ -927,7 +943,7 @@ object AlarmStore {
     private fun am(ctx: Context) = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     /** Полностью пересоздаёт все будильники и напоминания по данным страницы. */
-    fun sync(ctx: Context, json: String) {
+    fun sync(ctx: Context, json: String): String {
         val root = JSONObject(json)
         val alarms = root.optJSONArray("alarms") ?: JSONArray()
         val events = root.optJSONArray("events") ?: JSONArray()
@@ -952,6 +968,7 @@ object AlarmStore {
             keys.add("e" + e.getString("id"))
         }
         prefs(ctx).edit().putStringSet(K_IDS, keys).apply()
+        return "будильников ${alarms.length()}, напоминаний ${events.length()}"
     }
 
     /** Вызывается после перезагрузки телефона: ставим всё заново из сохранённого. */
@@ -1277,9 +1294,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.core.app.NotificationManagerCompat
 
 class MainActivity : Activity() {
 
@@ -1302,6 +1323,13 @@ class MainActivity : Activity() {
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+            Toast.makeText(
+                this,
+                "Уведомления выключены. Включи их для приложения в настройках, иначе напоминания не придут",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onBackPressed() {
@@ -1310,12 +1338,27 @@ class MainActivity : Activity() {
 
     /** Мост: страница вызывает AndroidPlaner.sync(json) при каждом изменении. */
     class Bridge(private val ctx: Context) {
+
+        companion object {
+            private var shownSummary = false
+        }
+
+        private fun toast(text: String) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         @JavascriptInterface
         fun sync(json: String) {
             try {
-                AlarmStore.sync(ctx, json)
+                val summary = AlarmStore.sync(ctx, json)
+                if (!shownSummary) {
+                    shownSummary = true
+                    toast("Поставлено: $summary")
+                }
             } catch (e: Exception) {
-                // не даём падать приложению из-за кривых данных
+                toast("Ошибка будильника: ${e.message}")
             }
         }
 
@@ -1406,35 +1449,55 @@ class ReminderReceiver : BroadcastReceiver() {
 ### FILE: app/src/main/res/drawable/ic_launcher_background.xml
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#0f0f1e" android:pathData="M0,0h108v108h-108z" />
-    <path android:fillColor="#8b5cf6" android:fillAlpha="0.35"
-        android:pathData="M54,54m-44,0a44,44 0 1,0 88,0a44,44 0 1,0 -88,0" />
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="44"
+                android:gradientRadius="80"
+                android:startColor="#3b1d6e"
+                android:endColor="#0a0a16" />
+        </aapt:attr>
+    </path>
 </vector>
 ### FILE: app/src/main/res/drawable/ic_launcher_foreground.xml
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M54,54m-24,0a24,24 0 1,0 48,0a24,24 0 1,0 -48,0" />
+    <path android:pathData="M30,60 A24,24 0 0 1 78,60 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="36"
+                android:endX="54"
+                android:endY="60"
+                android:startColor="#fde68a"
+                android:endColor="#f472b6" />
+        </aapt:attr>
+    </path>
     <path
         android:strokeColor="#c4b5fd"
-        android:strokeWidth="5"
+        android:strokeWidth="4"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M44,55 L51,62 L65,47" />
+        android:pathData="M24,70 Q34,64 44,70 T64,70 T84,70" />
+    <path
+        android:strokeColor="#8b5cf6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M32,82 Q42,76 52,82 T72,82" />
 </vector>
 ### FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 <?xml version="1.0" encoding="utf-8"?>
