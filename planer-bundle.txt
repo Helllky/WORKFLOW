@@ -7,9 +7,18 @@
 
 Сборка: при каждом коммите GitHub Actions собирает APK и публикует его в Releases.
 ### FILE: app/build.gradle.kts
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// Подпись: ключ лежит в репозитории в виде release.jks.b64, раскладываем его перед сборкой.
+// Так каждая сборка подписана одним ключом, и новая версия ставится поверх старой.
+val ksB64 = rootProject.file("release.jks.b64")
+if (ksB64.exists()) {
+    rootProject.file("release.jks").writeBytes(Base64.getMimeDecoder().decode(ksB64.readText()))
 }
 
 android {
@@ -20,13 +29,29 @@ android {
         applicationId = "com.planer.day"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // GitHub Actions подставляет номер сборки, он растёт при каждом коммите.
+        // Android ставит поверх только версию с бо́льшим номером.
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        create("planer") {
+            storeFile = rootProject.file("release.jks")
+            storePassword = "1ec1296f1dcabb0a117ad5ce8ce277bb"
+            keyAlias = "planer"
+            keyPassword = "1ec1296f1dcabb0a117ad5ce8ce277bb"
+            storeType = "pkcs12"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("planer")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("planer")
         }
     }
 
@@ -1244,24 +1269,7 @@ class ChallengeActivity : Activity() {
     }
 
     private fun startSound() {
-        tones = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            player = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                setDataSource(this@ChallengeActivity, uri)
-                isLooping = true
-                prepare()
-                start()
-            }
-        } catch (e: Exception) {
-            // без звука, но с вибрацией
-        }
+        // Звук будильника играет уведомление (зациклено), здесь только вибрация
         vibrateLoop()
     }
 
@@ -1296,6 +1304,7 @@ package com.planer.day
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -1332,13 +1341,28 @@ class MainActivity : Activity() {
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
+        var opened = false
         if (Build.VERSION.SDK_INT >= 31) {
             val am = getSystemService(AlarmManager::class.java)
             if (!am.canScheduleExactAlarms()) {
+                opened = true
                 Toast.makeText(this, "Разреши «Будильники и напоминания» для приложения", Toast.LENGTH_LONG).show()
                 try {
                     startActivity(
                         Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                            .setData(Uri.parse("package:" + packageName))
+                    )
+                } catch (e: Exception) {
+                }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 34 && !opened) {
+            val nm = getSystemService(NotificationManager::class.java)
+            if (!nm.canUseFullScreenIntent()) {
+                Toast.makeText(this, "Разреши показ на весь экран, чтобы будильник открывался сам", Toast.LENGTH_LONG).show()
+                try {
+                    startActivity(
+                        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
                             .setData(Uri.parse("package:" + packageName))
                     )
                 } catch (e: Exception) {
@@ -1395,16 +1419,19 @@ class MainActivity : Activity() {
 ### FILE: app/src/main/java/com/planer/day/Notifier.kt
 package com.planer.day
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 
 object Notifier {
-    const val CH_ALARM = "alarm_v1"
+    const val CH_ALARM = "alarm_v2"
     const val CH_REMIND = "remind_v1"
 
     fun notifId(key: String): Int = key.hashCode()
@@ -1414,7 +1441,11 @@ object Notifier {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         // Звук будильника играет ChallengeActivity по кругу, поэтому у канала звука нет
         val alarm = NotificationChannel(CH_ALARM, "Будильник", NotificationManager.IMPORTANCE_HIGH)
-        alarm.setSound(null, null)
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        alarm.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), attrs)
         alarm.enableVibration(true)
         nm.createNotificationChannel(alarm)
         nm.createNotificationChannel(
@@ -1432,7 +1463,7 @@ object Notifier {
             ctx, notifId(key), full,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val n = NotificationCompat.Builder(ctx, CH_ALARM)
+        val builder = NotificationCompat.Builder(ctx, CH_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(label.ifBlank { "Будильник" })
             .setContentText("Реши задачку, чтобы выключить")
@@ -1441,7 +1472,9 @@ object Notifier {
             .setOngoing(true)
             .setFullScreenIntent(pi, true)
             .setContentIntent(pi)
-            .build()
+            .setVibrate(longArrayOf(0, 900, 600))
+        val n = builder.build()
+        n.flags = n.flags or Notification.FLAG_INSISTENT
         ctx.getSystemService(NotificationManager::class.java).notify(notifId(key), n)
     }
 }
@@ -1534,6 +1567,8 @@ plugins {
 org.gradle.jvmargs=-Xmx2048m
 android.useAndroidX=true
 kotlin.code.style=official
+### FILE: release.jks.b64
+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
 ### FILE: settings.gradle.kts
 pluginManagement {
     repositories {
