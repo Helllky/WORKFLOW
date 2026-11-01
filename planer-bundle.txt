@@ -1,0 +1,1553 @@
+# Планер дня — проект одним файлом. Загрузи этот файл в корень репозитория.
+### FILE: README.md
+# Планер дня — Android
+
+Обёртка над веб-планером. Внутри WebView открывается страница из app/src/main/assets/index.html.
+Будильники и напоминания ставятся системой через мост AndroidPlaner.
+
+Сборка: при каждом коммите GitHub Actions собирает APK и публикует его в Releases.
+### FILE: app/build.gradle.kts
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.planer.day"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.planer.day"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+}
+### FILE: app/src/main/AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <application
+        android:allowBackup="true"
+        android:label="Планер дня"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ChallengeActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
+### FILE: app/src/main/assets/index.html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f1e">
+<title>Планер дня (локально)</title>
+<style>
+:root{--accent:#8b5cf6;--accent-rgb:139,92,246;--o2:#3b82f6;--bg1:#0f0f1e;--bg2:#1a1a2e;--bg3:#16213e;--text:#f1f1f7;--muted:rgba(241,241,247,.55);--glass:rgba(255,255,255,.05);--border:rgba(255,255,255,.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:300;color:var(--text);background:linear-gradient(135deg,var(--bg1) 0%,var(--bg2) 50%,var(--bg3) 100%);overflow:hidden;transition:background .6s}
+.orb{position:fixed;border-radius:50%;opacity:.5;z-index:0;pointer-events:none}
+.orb.a{width:340px;height:340px;background:radial-gradient(circle,var(--accent) 0%,transparent 68%);top:-90px;left:-110px}
+.orb.b{width:280px;height:280px;background:radial-gradient(circle,var(--o2) 0%,transparent 68%);bottom:12%;right:-120px}
+.noise{position:fixed;inset:0;opacity:.02;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+header{padding:calc(env(safe-area-inset-top,0px) + 18px) 20px 10px}
+header h1{font-size:26px;font-weight:300}
+header p{color:var(--muted);font-size:14px;margin-top:2px;text-transform:capitalize}
+main{flex:1;overflow-y:auto;padding:8px 16px 120px}
+.screen{display:none}
+.screen.active{display:block;animation:slideIn .45s cubic-bezier(.22,.8,.3,1) both}
+.screen.from-right{animation-name:slideInR}
+.screen.from-left{animation-name:slideInL}
+@keyframes slideInR{from{opacity:0;transform:translateX(70px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes slideInL{from{opacity:0;transform:translateX(-70px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.screen.active .glass-card{animation:rise .55s cubic-bezier(.22,.8,.3,1) backwards}
+.screen.active .glass-card:nth-child(2){animation-delay:.06s}
+.screen.active .glass-card:nth-child(3){animation-delay:.12s}
+.screen.active .glass-card:nth-child(4){animation-delay:.18s}
+.screen.active .glass-card:nth-child(5){animation-delay:.24s}
+.screen.active .glass-card:nth-child(6){animation-delay:.30s}
+nav button{position:relative;transition:color .3s,background .3s,transform .2s}
+nav button:active{transform:scale(.94)}
+nav button.on b{transform:translateY(-1px);text-shadow:0 0 12px rgba(var(--accent-rgb),.8)}
+nav button b{transition:transform .3s,text-shadow .3s}
+.glass-card{background:var(--glass);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--border);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1);position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.4,0,.2,1),border-color .3s}
+@media (hover:hover){.glass-card:hover{transform:translateY(-2px);border-color:rgba(var(--accent-rgb),.45)}}
+.glass-card::before{content:"";position:absolute;inset:0 0 auto 0;height:40%;background:linear-gradient(180deg,rgba(255,255,255,.06),transparent);pointer-events:none}
+.h{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:400}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.btn{background:rgba(var(--accent-rgb),.22);border:1px solid rgba(var(--accent-rgb),.5);padding:9px 16px;border-radius:12px;transition:.3s cubic-bezier(.4,0,.2,1)}
+.btn:hover{background:rgba(var(--accent-rgb),.35);transform:translateY(-1px)}
+.btn.ghost{background:var(--glass);border-color:var(--border)}
+input,select{font:inherit;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:10px 12px;outline:none;color-scheme:dark}
+input:focus,select:focus{border-color:rgba(var(--accent-rgb),.6)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted);font-size:13px}
+.big{font-size:44px;font-weight:200;letter-spacing:-.02em}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--glass);font-size:13px;transition:.2s}
+.chip.on{background:rgba(var(--accent-rgb),.3);border-color:rgba(var(--accent-rgb),.6)}
+.swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;transition:.2s}
+.swatch.on{border-color:#fff;transform:scale(1.1)}
+.toggle{width:46px;height:26px;border-radius:999px;background:rgba(255,255,255,.12);position:relative;transition:.3s;flex-shrink:0}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s cubic-bezier(.4,0,.2,1)}
+.toggle.on{background:var(--accent)}.toggle.on::after{transform:translateX(20px)}
+.prio{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.p1{background:#ef4444}.p2{background:#f59e0b}.p3{background:#22c55e}
+.task{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.task:last-child{border-bottom:0}
+.check{width:22px;height:22px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);display:grid;place-items:center;flex-shrink:0;font-size:13px}
+.check.on{background:var(--accent);border-color:var(--accent)}
+.task.done .t{text-decoration:line-through;opacity:.45}
+.t{flex:1;font-size:15px;word-break:break-word}
+.del{color:var(--muted);font-size:20px;padding:4px 8px}
+.bar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .4s}
+.tl{position:relative;height:1080px;margin-top:6px}
+.hl{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:var(--muted)}
+.hl span{position:absolute;left:0;top:-8px}
+.ev{position:absolute;left:50px;right:4px;border-radius:14px;padding:6px 12px;border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);cursor:grab;touch-action:none;user-select:none;font-size:14px;overflow:hidden;transition:box-shadow .2s}
+.ev.drag{box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:grabbing}
+.ev small{display:block;color:var(--muted);font-size:12px}
+.ev{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;padding-right:34px}
+.ev-more{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;color:var(--text);opacity:.75;font-size:18px;line-height:28px;text-align:center}
+.ev-more:active{background:rgba(255,255,255,.14)}
+#evSheet{position:fixed;inset:0;z-index:20;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#evSheet.open{display:flex;animation:fadeIn .2s ease}
+#evSheet .sheet{width:100%;max-width:520px;margin:0 12px calc(env(safe-area-inset-bottom,0px) + 12px);padding:18px;border-radius:24px;background:rgba(30,30,55,.9);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.5);animation:sheetUp .3s cubic-bezier(.22,.8,.3,1)}
+#evSheet button.opt{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:14px;margin-top:8px;background:var(--glass);border:1px solid var(--border);font-size:16px}
+#evSheet button.opt.danger{color:#f87171}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.nowline{position:absolute;left:40px;right:0;height:2px;background:#f87171;box-shadow:0 0 8px #f87171;z-index:2}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.cal-grid .wd{font-size:11px;color:var(--muted);padding-bottom:4px}
+.day{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:14px;border:1px solid transparent;transition:.2s}
+.day:hover{background:rgba(255,255,255,.06)}
+.day.out{opacity:.25}.day.today{border-color:var(--accent)}.day.sel{background:rgba(var(--accent-rgb),.3)}
+.dots{display:flex;gap:3px;height:6px}
+.dots i{width:5px;height:5px;border-radius:50%}
+.week{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:8px}
+.week div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;font-size:11px;color:var(--muted)}
+.week i{width:100%;border-radius:8px;background:rgba(var(--accent-rgb),.6);min-height:3px;transition:height .4s}
+nav{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:5;display:flex;justify-content:space-around;padding:6px;border-radius:24px;background:rgba(30,30,55,.55);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;font-size:11px;color:var(--muted);border-radius:16px;transition:.3s}
+nav button b{font-size:18px;font-weight:400}
+nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
+#toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;z-index:10;display:none;margin:0}
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+
+<div class="app">
+  <header>
+    <h1 id="greet">Привет</h1>
+    <p id="dateLine"></p>
+  </header>
+
+  <main>
+    <!-- ГЛАВНАЯ -->
+    <section class="screen active" id="s-home">
+      <div class="glass-card">
+        <div class="h">Сейчас</div>
+        <div class="big" id="clock">--:--</div>
+        <div class="muted" id="nextAlarm" style="margin-top:4px"></div>
+      </div>
+      <div class="glass-card">
+        <div class="h">Настроение</div>
+        <div class="row" id="moodRow" style="justify-content:space-between"></div>
+        <div class="muted" id="moodMsg" style="margin-top:10px"></div>
+      </div>
+      <div class="glass-card">
+        <div class="h">Задачи на сегодня</div>
+        <div class="bar"><i id="progBar" style="width:0"></i></div>
+        <div class="muted" id="progTxt" style="margin-top:10px"></div>
+      </div>
+      <div class="glass-card">
+        <div class="h">Акцентный цвет</div>
+        <div class="row" id="swatches"></div>
+      </div>
+    </section>
+
+    <!-- ЗАДАЧИ -->
+    <section class="screen" id="s-tasks">
+      <div class="glass-card">
+        <div class="h">Новая метка</div>
+        <div class="row" style="flex-wrap:nowrap"><input id="taskInput" placeholder="Что нужно сделать?" style="flex:1;min-width:0"><button class="btn" id="taskAdd">Добавить</button></div>
+        <div class="row" style="margin-top:10px">
+          <span class="muted">Приоритет:</span>
+          <div class="row" id="taskPrio" style="gap:6px"></div>
+        </div>
+      </div>
+      <div class="row" id="taskFilter" style="margin:0 0 12px"></div>
+      <div class="glass-card" style="padding:4px 16px">
+        <div id="taskList"></div>
+        <div class="muted" id="taskEmpty" style="padding:14px 0;display:none">Пусто. Добавь первую метку выше.</div>
+      </div>
+    </section>
+
+    <!-- РАСПИСАНИЕ ДНЯ -->
+    <section class="screen" id="s-day">
+      <div class="glass-card">
+        <div class="h">Новое событие</div>
+        <input id="evTitle" placeholder="Название" style="width:100%;margin-bottom:10px">
+        <div class="row">
+          <input id="evStart" type="time" value="09:00" style="flex:1">
+          <select id="evDur" style="flex:1">
+            <option value="30">30 мин</option>
+            <option value="60" selected>1 час</option>
+            <option value="90">1.5 часа</option>
+            <option value="120">2 часа</option>
+          </select>
+        </div>
+        <div class="row" id="evCats" style="margin-top:10px"></div>
+        <button class="btn" id="evAdd" style="margin-top:12px;width:100%">Добавить</button>
+      </div>
+      <div class="glass-card" style="padding:12px 12px 12px 8px">
+        <div class="h" style="padding-left:8px">Расписание · тяни карточку, чтобы поменять время</div>
+        <div class="tl" id="tl"></div>
+      </div>
+    </section>
+
+    <!-- КАЛЕНДАРЬ -->
+    <section class="screen" id="s-cal">
+      <div class="glass-card">
+        <div class="row" style="justify-content:space-between;margin-bottom:12px">
+          <button class="btn ghost" id="calPrev">‹</button>
+          <div id="calTitle" style="text-transform:capitalize;font-size:17px"></div>
+          <button class="btn ghost" id="calNext">›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="row muted" style="margin-top:12px;font-size:12px;gap:12px">
+          <span><i class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e"></i> настроение</span>
+          <span><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#eab308"></i> сон</span>
+          <span><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent)"></i> задачи</span>
+        </div>
+      </div>
+      <div id="calDetail"></div>
+    </section>
+
+    <!-- СОН И БУДИЛЬНИК -->
+    <section class="screen" id="s-sleep">
+      <div class="glass-card">
+        <div id="sTrack"></div>
+        <div class="muted" style="margin-top:12px;font-size:12px">Авторежим: если страница была скрыта или экран заблокирован больше 60 минут, при возврате сон записывается автоматически.</div>
+      </div>
+      <div class="glass-card">
+        <div class="h">Статистика</div>
+        <div id="sStats"></div>
+      </div>
+      <div class="glass-card">
+        <div class="h">Будильники</div>
+        <div class="row" style="margin-bottom:12px">
+          <input id="alTime" type="time" value="07:00" style="flex:1">
+          <input id="alLabel" placeholder="Подпись" style="flex:1">
+        </div>
+        <div class="row" id="alDays" style="gap:6px;margin-bottom:12px"></div>
+        <button class="btn" id="alAdd" style="width:100%">Добавить будильник</button>
+        <div id="alList" style="margin-top:14px"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav">
+    <button data-tab="home" class="on"><b>⌂</b>Главная</button>
+    <button data-tab="tasks"><b>✓</b>Задачи</button>
+    <button data-tab="day"><b>▤</b>День</button>
+    <button data-tab="cal"><b>▦</b>Календарь</button>
+    <button data-tab="sleep"><b>☾</b>Сон</button>
+  </nav>
+</div>
+
+<div id="toast" class="glass-card"></div>
+<div id="evSheet"><div class="sheet" id="evSheetBox"></div></div>
+
+<script>
+/* ===================== ДАННЫЕ ===================== */
+const KEY = 'planer.v1';
+const ACC = {purple:'#8b5cf6', blue:'#3b82f6', emerald:'#10b981', pink:'#ec4899', amber:'#f59e0b', teal:'#14b8a6'};
+const MOODS = ['😢','😕','😐','🙂','😄'];
+const MOOD_TXT = ['Плохо','Так себе','Нормально','Хорошо','Отлично'];
+const MCOL = ['#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
+const CATS = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899'];
+const DAYS = [['Пн',1],['Вт',2],['Ср',3],['Чт',4],['Пт',5],['Сб',6],['Вс',0]];
+const DEF = {tasks:[], events:[], alarms:[], moods:{}, sleeps:[], accent:'purple', filter:'all', sleepNow:null, hiddenAt:null, selDay:null};
+
+let S = Object.assign({}, DEF);
+let docRef = null;
+try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e) {}
+/* Мост к Android: если страница открыта в приложении, будильники и напоминания ставит система */
+function syncNative(){
+  if (!window.AndroidPlaner) return;
+  try { AndroidPlaner.sync(JSON.stringify({alarms:S.alarms, events:S.events})); } catch(e) {}
+}
+let writeChain = Promise.resolve();
+const save = () => {
+  localStorage.setItem(KEY, JSON.stringify(S));
+  syncNative();
+  if (docRef) {
+    const data = JSON.parse(JSON.stringify(S));
+    writeChain = writeChain.then(() => docRef.set(data)).catch(() => {});
+  }
+};
+
+/* ===================== ХЕЛПЕРЫ ===================== */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+const dayKey = d => { d = d || new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
+const hhmm = m => pad(Math.floor(m/60))+':'+pad(m%60);
+const fmtDur = min => Math.floor(min/60)+'ч '+pad(Math.round(min%60))+'м';
+const uid = () => Math.random().toString(36).slice(2,9);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleepFor = key => S.sleeps.filter(s => s.date === key).reduce((a,s) => a + s.minutes, 0);
+const sleepColor = min => min >= 420 ? '#22c55e' : min >= 300 ? '#eab308' : '#ef4444';
+const sortTasks = (a,b) => (a.done - b.done) || (a.prio - b.prio);
+
+/* ===================== ТЕМА ===================== */
+/* Тема под акцент: цвет кнопок, темный фон в том же тоне и второй орб */
+const THEME = {
+  purple:  {bg:['#0f0f1e','#1a1a2e','#16213e'], o2:'#3b82f6'},
+  blue:    {bg:['#050a1f','#0a1636','#0d2150'], o2:'#06b6d4'},
+  emerald: {bg:['#03120c','#082217','#0b3024'], o2:'#84cc16'},
+  pink:    {bg:['#170713','#250a20','#33102d'], o2:'#a855f7'},
+  amber:   {bg:['#150e03','#241806','#33230a'], o2:'#f97316'},
+  teal:    {bg:['#031416','#082428','#0b3439'], o2:'#22d3ee'}
+};
+function applyAccent(k){
+  const hex = ACC[k], th = THEME[k];
+  const n = parseInt(hex.slice(1),16);
+  const rs = document.documentElement.style;
+  rs.setProperty('--accent', hex);
+  rs.setProperty('--accent-rgb', [n>>16, (n>>8)&255, n&255].join(','));
+  rs.setProperty('--o2', th.o2);
+  rs.setProperty('--bg1', th.bg[0]);
+  rs.setProperty('--bg2', th.bg[1]);
+  rs.setProperty('--bg3', th.bg[2]);
+}
+function setAccent(k){
+  S.accent = k;
+  applyAccent(k);
+  save(); renderHome();
+}
+
+/* ===================== НАВИГАЦИЯ ===================== */
+const RENDER = {};
+const TABS = ['home','tasks','day','cal','sleep'];
+const curTab = () => { const b = document.querySelector('nav button.on'); return b ? b.dataset.tab : 'home'; };
+function show(tab){
+  const prev = curTab();
+  if (tab === prev && document.querySelector('#s-'+tab).classList.contains('active')) return;
+  const dir = TABS.indexOf(tab) >= TABS.indexOf(prev) ? 'from-right' : 'from-left';
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('from-left','from-right');
+    s.classList.toggle('active', s.id === 's-'+tab);
+  });
+  const el = document.querySelector('#s-'+tab);
+  el.classList.add(dir);
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelector('main').scrollTop = 0;
+  RENDER[tab] && RENDER[tab]();
+}
+
+/* ===================== ГЛАВНАЯ ===================== */
+function renderHome(){
+  const today = dayKey();
+  const mood = S.moods[today];
+  $('#moodRow').innerHTML = MOODS.map((m,i) =>
+    `<button class="chip ${mood===i+1?'on':''}" data-m="${i+1}" style="font-size:24px;padding:6px 10px">${m}</button>`).join('');
+  $('#moodRow').querySelectorAll('button').forEach(b => b.onclick = () => {
+    S.moods[today] = +b.dataset.m; save(); renderHome();
+  });
+  $('#moodMsg').textContent = mood ? 'Сегодня: ' + MOOD_TXT[mood-1] : 'Как ты сегодня?';
+
+  const tt = S.tasks.filter(t => t.date === today);
+  const done = tt.filter(t => t.done).length;
+  $('#progBar').style.width = (tt.length ? done/tt.length*100 : 0) + '%';
+  $('#progTxt').textContent = tt.length ? `${done} из ${tt.length} выполнено` : 'На сегодня задач нет';
+
+  $('#swatches').innerHTML = Object.keys(ACC).map(k =>
+    `<button class="swatch ${S.accent===k?'on':''}" style="background:${ACC[k]}" data-a="${k}"></button>`).join('');
+  $('#swatches').querySelectorAll('button').forEach(b => b.onclick = () => setAccent(b.dataset.a));
+}
+
+function nextAlarmText(){
+  const now = new Date(); let best = null;
+  S.alarms.filter(a => a.on).forEach(a => {
+    for (let d = 0; d < 8; d++){
+      const c = new Date(now); c.setDate(now.getDate()+d); c.setHours(a.h, a.m, 0, 0);
+      if (c > now && (a.days.length === 0 || a.days.includes(c.getDay()))){
+        if (!best || c < best) best = c;
+        break;
+      }
+    }
+  });
+  if (!best) return 'Будильников нет';
+  const diff = best - now;
+  return 'Будильник в ' + pad(best.getHours())+':'+pad(best.getMinutes()) +
+         ' · через ' + Math.floor(diff/3600000) + 'ч ' + Math.floor(diff%3600000/60000) + 'м';
+}
+
+/* ===================== ЗАДАЧИ ===================== */
+let newPrio = 2;
+function renderTasks(){
+  $('#taskPrio').innerHTML = [1,2,3].map(p =>
+    `<button class="chip ${newPrio===p?'on':''}" data-p="${p}" style="padding:4px 10px"><span class="prio p${p}" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>${p}</button>`).join('');
+  $('#taskPrio').querySelectorAll('button').forEach(b => b.onclick = () => { newPrio = +b.dataset.p; renderTasks(); });
+
+  const filters = [['all','Все'],['active','Активные'],['done','Выполненные']];
+  $('#taskFilter').innerHTML = filters.map(([k,l]) =>
+    `<button class="chip ${S.filter===k?'on':''}" data-f="${k}">${l}</button>`).join('');
+  $('#taskFilter').querySelectorAll('button').forEach(b => b.onclick = () => {
+    S.filter = b.dataset.f; save(); renderTasks();
+  });
+
+  const list = S.tasks
+    .filter(t => S.filter==='all' || (S.filter==='active' ? !t.done : t.done))
+    .sort(sortTasks);
+  $('#taskList').innerHTML = list.map(t => `
+    <div class="task ${t.done?'done':''}">
+      <button class="check ${t.done?'on':''}" data-act="toggle" data-id="${t.id}">${t.done?'✓':''}</button>
+      <span class="t">${esc(t.text)}</span>
+      <button class="prio p${t.prio}" data-act="prio" data-id="${t.id}" aria-label="приоритет"></button>
+      <button class="del" data-act="del" data-id="${t.id}">×</button>
+    </div>`).join('');
+  $('#taskEmpty').style.display = list.length ? 'none' : 'block';
+}
+
+/* ===================== РАСПИСАНИЕ ДНЯ ===================== */
+let newCat = 0, drag = null;
+function renderDay(){
+  $('#evCats').innerHTML = CATS.map((c,i) =>
+    `<button class="swatch ${newCat===i?'on':''}" style="background:${c};width:24px;height:24px" data-c="${i}"></button>`).join('');
+  $('#evCats').querySelectorAll('button').forEach(b => b.onclick = () => { newCat = +b.dataset.c; renderDay(); });
+
+  const tl = $('#tl');
+  let html = '';
+  for (let h = 6; h <= 23; h++) html += `<div class="hl" style="top:${(h-6)*60}px"><span>${pad(h)}:00</span></div>`;
+  const now = new Date(), nowMin = now.getHours()*60 + now.getMinutes();
+  if (nowMin >= 360 && nowMin <= 1380) html += `<div class="nowline" style="top:${nowMin-360}px"></div>`;
+  S.events.filter(e => e.date === dayKey()).forEach(e => {
+    html += `<div class="ev" data-id="${e.id}" data-start="${e.start}" data-dur="${e.dur}"
+      style="top:${e.start-360}px;height:${Math.max(e.dur,30)}px;background:${e.color}40;border-color:${e.color}80">
+      <b style="font-weight:400">${esc(e.title)}</b><small>${hhmm(e.start)}–${hhmm(e.start+e.dur)}</small><button class="ev-more" data-more="${e.id}" aria-label="действия">⋮</button></div>`;
+  });
+  tl.innerHTML = html;
+  bindDrag();
+}
+
+function bindDrag(){
+  document.querySelectorAll('#tl .ev').forEach(el => {
+    el.oncontextmenu = e => e.preventDefault();
+    el.onpointerdown = e => {
+      drag = {el, id: el.dataset.id, y: e.clientY, start: +el.dataset.start, dur: +el.dataset.dur, moved: false, cur: null, timer: null};
+      el.setPointerCapture(e.pointerId); el.classList.add('drag');
+      drag.timer = setTimeout(() => {
+        if (!drag || drag.el !== el || drag.moved) return;
+        const id = drag.id;
+        endDrag();
+        openEventMenu(id);
+      }, 500);
+    };
+    el.onpointermove = e => {
+      if (!drag || drag.el !== el) return;
+      const dy = e.clientY - drag.y;
+      if (Math.abs(dy) > 4 && !drag.moved) { drag.moved = true; clearTimeout(drag.timer); }
+      let s = Math.round((drag.start + dy)/15)*15;               // шаг 15 минут, 1px = 1 минута
+      s = Math.max(360, Math.min(1380 - drag.dur, s));
+      drag.cur = s; el.style.top = (s-360) + 'px';
+    };
+    el.onpointerup = () => {
+      if (!drag) return;
+      clearTimeout(drag.timer);
+      if (drag.moved && drag.cur != null){
+        const ev = S.events.find(x => x.id === drag.id);
+        if (ev){ ev.start = drag.cur; save(); }
+      }
+      drag = null; renderDay();
+    };
+  });
+}
+
+/* ===================== ДЕЙСТВИЯ С СОБЫТИЕМ ===================== */
+let editId = null;
+function endDrag(){
+  if (drag){ clearTimeout(drag.timer); drag.el.classList.remove('drag'); }
+  drag = null;
+}
+function openEventMenu(id){
+  const ev = S.events.find(x => x.id === id);
+  if (!ev) return;
+  const box = $('#evSheetBox');
+  box.innerHTML = `
+    <div class="h">${esc(ev.title)}</div>
+    <div class="muted" style="margin-bottom:6px">${hhmm(ev.start)}–${hhmm(ev.start+ev.dur)}</div>
+    <button class="opt" data-o="edit">Изменить</button>
+    <button class="opt danger" data-o="del">Удалить</button>
+    <button class="opt" data-o="cancel">Отмена</button>`;
+  $('#evSheet').classList.add('open');
+  box.onclick = e => {
+    const b = e.target.closest('[data-o]'); if (!b) return;
+    closeEventMenu();
+    if (b.dataset.o === 'edit') startEditEvent(id);
+    if (b.dataset.o === 'del') {
+      S.events = S.events.filter(x => x.id !== id);
+      save(); renderDay();
+    }
+  };
+}
+function closeEventMenu(){ $('#evSheet').classList.remove('open'); }
+$('#evSheet').addEventListener('click', e => { if (e.target.id === 'evSheet') closeEventMenu(); });
+function startEditEvent(id){
+  const ev = S.events.find(x => x.id === id);
+  if (!ev) return;
+  editId = id;
+  $('#evTitle').value = ev.title;
+  $('#evStart').value = hhmm(ev.start);
+  $('#evDur').value = ['30','60','90','120'].includes(String(ev.dur)) ? String(ev.dur) : '60';
+  newCat = Math.max(0, CATS.indexOf(ev.color));
+  $('#evAdd').textContent = 'Сохранить';
+  document.querySelector('main').scrollTop = 0;
+  renderDay();
+}
+
+/* ===================== КАЛЕНДАРЬ ===================== */
+const cal = {y: new Date().getFullYear(), m: new Date().getMonth()};
+function renderCal(){
+  const first = new Date(cal.y, cal.m, 1);
+  $('#calTitle').textContent = first.toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+  const offset = (first.getDay()+6)%7;
+  const days = new Date(cal.y, cal.m+1, 0).getDate();
+  const today = dayKey();
+  let html = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(w => `<div class="wd">${w}</div>`).join('');
+  for (let i = 0; i < offset; i++) html += '<div></div>';
+  for (let d = 1; d <= days; d++){
+    const key = dayKey(new Date(cal.y, cal.m, d));
+    const mood = S.moods[key];
+    const sl = sleepFor(key);
+    const tc = Math.min(3, S.tasks.filter(t => t.date === key).length);
+    let dots = '';
+    if (mood) dots += `<i style="background:${MCOL[mood-1]}"></i>`;
+    if (sl)   dots += `<i style="background:${sleepColor(sl)}"></i>`;
+    for (let i = 0; i < tc; i++) dots += `<i style="background:var(--accent)"></i>`;
+    const cls = ['day', key===today?'today':'', key===S.selDay?'sel':''].join(' ');
+    html += `<button class="${cls}" data-key="${key}"><span>${d}</span><span class="dots">${dots}</span></button>`;
+  }
+  $('#calGrid').innerHTML = html;
+  $('#calGrid').querySelectorAll('.day').forEach(b => b.onclick = () => {
+    S.selDay = b.dataset.key; save(); renderCal(); renderCalDetail(b.dataset.key);
+  });
+  renderCalDetail(S.selDay);
+}
+
+function renderCalDetail(key){
+  if (!key){ $('#calDetail').innerHTML = ''; return; }
+  const d = new Date(key+'T00:00:00');
+  const mood = S.moods[key];
+  const sl = sleepFor(key);
+  const tasks = S.tasks.filter(t => t.date === key).sort(sortTasks);
+  const evs = S.events.filter(e => e.date === key).sort((a,b) => a.start-b.start);
+  $('#calDetail').innerHTML = `
+    <div class="glass-card">
+      <div class="h">${d.toLocaleDateString('ru-RU',{weekday:'long', day:'numeric', month:'long'})}</div>
+      <div class="row" style="margin-bottom:10px">
+        <span>Настроение: ${mood ? MOODS[mood-1]+' '+MOOD_TXT[mood-1] : '—'}</span>
+      </div>
+      <div style="margin-bottom:12px">Сон: ${sl ? `<span style="color:${sleepColor(sl)}">${fmtDur(sl)}</span>` : '—'}</div>
+      <div class="h" style="margin-top:6px">Задачи</div>
+      ${tasks.length ? tasks.map(t => `<div class="muted" style="padding:4px 0;${t.done?'text-decoration:line-through;opacity:.5':''}">${esc(t.text)}</div>`).join('') : '<div class="muted">Нет задач</div>'}
+      <div class="h" style="margin-top:12px">События</div>
+      ${evs.length ? evs.map(e => `<div class="muted" style="padding:4px 0">${hhmm(e.start)} · ${esc(e.title)}</div>`).join('') : '<div class="muted">Нет событий</div>'}
+    </div>`;
+}
+
+/* ===================== СОН ===================== */
+const FALL_MS = 30*60000;
+function addSleep(start, end, auto){
+  const minutes = (end-start)/60000;
+  if (minutes < 1) return;
+  S.sleeps.push({id:uid(), date:dayKey(new Date(end)), start, end, minutes, auto});
+  save();
+}
+
+function renderSleep(){
+  const s = S.sleepNow;
+  let html;
+  if (!s){
+    html = `<div class="h">Трекер сна</div>
+      <div class="big" style="font-size:30px">Не спишь</div>
+      <div class="muted" style="margin:6px 0 14px">Нажми, когда ложишься</div>
+      <button class="btn" data-act="fall">Засыпаю</button>`;
+  } else if (s.phase === 'falling'){
+    const left = Math.max(0, FALL_MS - (Date.now()-s.fallStart));
+    html = `<div class="h">Засыпаю</div>
+      <div class="big" style="font-size:30px">${Math.ceil(left/60000)} мин</div>
+      <div class="muted" style="margin:6px 0 14px">Отсчёт на засыпание, потом пойдёт сон</div>
+      <button class="btn ghost" data-act="cancel">Передумал</button>`;
+  } else {
+    const el = (Date.now()-s.sleepStart)/60000;
+    html = `<div class="h">Сплю</div>
+      <div class="big" style="font-size:30px">${fmtDur(el)}</div>
+      <div class="muted" style="margin:6px 0 14px">С ${hhmm(new Date(s.sleepStart).getHours()*60+new Date(s.sleepStart).getMinutes())}</div>
+      <button class="btn" data-act="wake">Проснулся</button>`;
+  }
+  $('#sTrack').innerHTML = html;
+
+  const last7 = S.sleeps.slice(-7);
+  const avg = last7.length ? last7.reduce((a,x) => a+x.minutes, 0)/last7.length : 0;
+  let bars = '';
+  for (let i = 6; i >= 0; i--){
+    const d = new Date(Date.now() - i*864e5);
+    const mins = sleepFor(dayKey(d));
+    bars += `<div><i style="height:${Math.min(100, mins/540*100)}%;${mins?'':'opacity:.15'}"></i>${d.toLocaleDateString('ru-RU',{weekday:'short'})}</div>`;
+  }
+  $('#sStats').innerHTML = `
+    <div class="muted">Средняя за последние ночи: <span style="color:var(--text)">${last7.length ? fmtDur(avg) : '—'}</span></div>
+    <div class="week">${bars}</div>`;
+}
+
+/* ===================== БУДИЛЬНИК ===================== */
+let alDays = [], lastFire = '', stopBeep = null, actx = null;
+
+function renderAlarms(){
+  $('#alDays').innerHTML = DAYS.map(([l,v]) =>
+    `<button class="chip ${alDays.includes(v)?'on':''}" data-d="${v}">${l}</button>`).join('');
+  $('#alDays').querySelectorAll('button').forEach(b => b.onclick = () => {
+    const v = +b.dataset.d;
+    alDays = alDays.includes(v) ? alDays.filter(x => x!==v) : [...alDays, v];
+    renderAlarms();
+  });
+
+  $('#alList').innerHTML = S.alarms.map(a => {
+    const dn = a.days.length ? DAYS.filter(([,v]) => a.days.includes(v)).map(([l]) => l).join(' ') : 'Один раз';
+    return `<div class="task">
+      <div class="grow">
+        <div style="font-size:24px;font-weight:300">${pad(a.h)}:${pad(a.m)}</div>
+        <div class="muted">${esc(a.label || 'Будильник')} · ${dn}</div>
+      </div>
+      <button class="toggle ${a.on?'on':''}" data-act="aton" data-id="${a.id}"></button>
+      <button class="del" data-act="adel" data-id="${a.id}">×</button>
+    </div>`;
+  }).join('') || '<div class="muted">Будильников нет</div>';
+  $('#nextAlarm') && ($('#nextAlarm').textContent = nextAlarmText());
+}
+
+function beep(){
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  let n = 0;
+  const iv = setInterval(() => {
+    if (actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(.25, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + .35);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + .4);
+    if (++n >= 40) clearInterval(iv);
+  }, 700);
+  return () => clearInterval(iv);
+}
+
+function fireAlarm(a){
+  const t = $('#toast');
+  t.innerHTML = `<div class="h">Будильник</div>
+    <div class="row" style="justify-content:space-between"><span style="font-size:18px">${esc(a.label || 'Подъём')}</span>
+    <button class="btn" id="stopAl">Стоп</button></div>`;
+  t.style.display = 'block';
+  stopBeep = beep();
+  $('#stopAl').onclick = () => { stopBeep && stopBeep(); t.style.display = 'none'; };
+}
+
+function checkAlarms(){
+  if (window.AndroidPlaner) return; // в приложении звонит нативный будильник
+  const n = new Date();
+  S.alarms.forEach(a => {
+    if (!a.on || a.h !== n.getHours() || a.m !== n.getMinutes()) return;
+    if (a.days.length && !a.days.includes(n.getDay())) return;
+    const k = a.id + dayKey(n) + a.h + a.m;
+    if (lastFire === k) return;
+    lastFire = k;
+    if (!a.days.length){ a.on = false; save(); }
+    fireAlarm(a);
+    renderAlarms();
+  });
+}
+
+/* ===================== СОН: ТАЙМЕР И АВТОРЕЖИМ ===================== */
+function tickSleep(){
+  const s = S.sleepNow;
+  if (s && s.phase === 'falling' && Date.now() - s.fallStart >= FALL_MS){
+    s.phase = 'asleep'; s.sleepStart = s.fallStart + FALL_MS; save();
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    S.hiddenAt = Date.now(); save();
+  } else if (S.hiddenAt){
+    const away = Date.now() - S.hiddenAt;
+    if (away >= 60*60000 && !S.sleepNow) addSleep(S.hiddenAt + 60*60000, Date.now(), true);
+    S.hiddenAt = null; save();
+    renderSleep();
+  }
+});
+
+/* ===================== ЧАСЫ И ОБЩИЙ ТИК ===================== */
+let lastMin = -1;
+function tick(){
+  const n = new Date();
+  const min = n.getHours()*60 + n.getMinutes();
+  if (min !== lastMin){
+    lastMin = min;
+    const h = n.getHours();
+    $('#clock').textContent = pad(h)+':'+pad(n.getMinutes());
+    $('#greet').textContent = h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+    $('#dateLine').textContent = n.toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'});
+    $('#nextAlarm').textContent = nextAlarmText();
+    if (!drag && document.querySelector('#s-day').classList.contains('active')) renderDay();
+  }
+  tickSleep();
+  checkAlarms();
+  if (S.sleepNow && document.querySelector('#s-sleep').classList.contains('active')) renderSleep();
+}
+
+/* ===================== ВВОД И ДЕЙСТВИЯ ===================== */
+function addTask(){
+  const inp = $('#taskInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  S.tasks.push({id:uid(), text, done:false, prio:newPrio, date:dayKey()});
+  inp.value = ''; save(); renderTasks();
+}
+$('#taskInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+$('#taskAdd').onclick = addTask;
+$('#taskList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const t = S.tasks.find(x => x.id === b.dataset.id); if (!t) return;
+  if (b.dataset.act === 'toggle') t.done = !t.done;
+  if (b.dataset.act === 'prio') t.prio = t.prio % 3 + 1;
+  if (b.dataset.act === 'del') S.tasks = S.tasks.filter(x => x.id !== t.id);
+  save(); renderTasks();
+});
+
+$('#evAdd').onclick = () => {
+  const title = $('#evTitle').value.trim();
+  if (!title) return;
+  const [hh, mm] = $('#evStart').value.split(':').map(Number);
+  const data = {title, start:hh*60+mm, dur:+$('#evDur').value, color:CATS[newCat]};
+  if (editId) {
+    const ev = S.events.find(x => x.id === editId);
+    if (ev) Object.assign(ev, data);
+    editId = null;
+    $('#evAdd').textContent = 'Добавить';
+  } else {
+    S.events.push({id:uid(), date:dayKey(), ...data});
+  }
+  $('#evTitle').value = ''; save(); renderDay();
+};
+$('#tl').addEventListener('click', e => {
+  const b = e.target.closest('.ev-more');
+  if (b) openEventMenu(b.dataset.more);
+});
+
+$('#calPrev').onclick = () => { cal.m--; if (cal.m < 0){ cal.m = 11; cal.y--; } renderCal(); };
+$('#calNext').onclick = () => { cal.m++; if (cal.m > 11){ cal.m = 0; cal.y++; } renderCal(); };
+
+$('#sTrack').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'fall'){ S.sleepNow = {phase:'falling', fallStart:Date.now()}; }
+  if (act === 'cancel'){ S.sleepNow = null; }
+  if (act === 'wake' && S.sleepNow){
+    if (S.sleepNow.phase === 'asleep') addSleep(S.sleepNow.sleepStart, Date.now(), false);
+    S.sleepNow = null;
+  }
+  save(); renderSleep();
+});
+
+$('#alAdd').onclick = () => {
+  const [h, m] = $('#alTime').value.split(':').map(Number);
+  S.alarms.push({id:uid(), h, m, days:[...alDays].sort(), label:$('#alLabel').value.trim(), on:true});
+  $('#alLabel').value = ''; alDays = []; save(); renderAlarms();
+};
+$('#alList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'aton'){ const a = S.alarms.find(x => x.id === b.dataset.id); if (a) a.on = !a.on; }
+  if (b.dataset.act === 'adel') S.alarms = S.alarms.filter(x => x.id !== b.dataset.id);
+  save(); renderAlarms();
+});
+
+document.getElementById('nav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (b) show(b.dataset.tab);
+});
+
+/* Свайп влево/вправо по контенту переключает окна. Перетаскивание событий в расписании не трогаем. */
+(() => {
+  const main = document.querySelector('main');
+  let t = null;
+  main.addEventListener('touchstart', e => {
+    if (e.target.closest('.ev, input, select, textarea')) { t = null; return; }
+    const p = e.touches[0]; t = {x: p.clientX, y: p.clientY, at: Date.now()};
+  }, {passive: true});
+  main.addEventListener('touchend', e => {
+    if (!t) return;
+    const p = e.changedTouches[0];
+    const dx = p.clientX - t.x, dy = p.clientY - t.y;
+    const fast = Date.now() - t.at < 600;
+    t = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5 || !fast) return;
+    const i = TABS.indexOf(curTab());
+    const next = dx < 0 ? i + 1 : i - 1;
+    if (next >= 0 && next < TABS.length) show(TABS[next]);
+  }, {passive: true});
+})();
+
+/* ===================== СТАРТ ===================== */
+RENDER.home = renderHome;
+RENDER.tasks = renderTasks;
+RENDER.day = renderDay;
+RENDER.cal = renderCal;
+RENDER.sleep = () => { renderSleep(); renderAlarms(); };
+
+function renderAll(){
+  applyAccent(S.accent);
+  renderTasks(); renderDay(); renderCal(); renderSleep(); renderAlarms();
+}
+if (window.AndroidPlaner) {
+  try {
+    const fired = JSON.parse(AndroidPlaner.takeFired() || '[]');
+    if (fired.length) { S.alarms.forEach(a => { if (fired.includes(a.id)) a.on = false; }); save(); }
+  } catch (e) {}
+}
+renderAll();
+syncNative();
+tick();
+setInterval(tick, 1000);
+
+</script>
+</body>
+</html>
+### FILE: app/src/main/java/com/planer/day/AlarmReceiver.kt
+package com.planer.day
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class AlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        val key = intent.getStringExtra("key") ?: return
+        val label = intent.getStringExtra("label").orEmpty()
+
+        // Уведомление с полноэкранным показом (работает, если разрешены уведомления)
+        Notifier.showAlarm(ctx, key, label)
+
+        // Дополнительно открываем экран задачи напрямую: будильник работает даже без уведомлений
+        try {
+            ctx.startActivity(
+                Intent(ctx, ChallengeActivity::class.java)
+                    .putExtra("key", key)
+                    .putExtra("label", label)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            // если система не разрешила, останется уведомление
+        }
+
+        AlarmStore.afterFire(ctx, key)
+    }
+}
+### FILE: app/src/main/java/com/planer/day/AlarmStore.kt
+package com.planer.day
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+/**
+ * Хранит будильники и напоминания, присланные страницей, и ставит их в системе.
+ * Будильники — через setAlarmClock: работают при погашенном экране и в режиме Doze,
+ * отдельного разрешения не требуют.
+ */
+object AlarmStore {
+    private const val PREFS = "planer_native"
+    private const val K_ALARMS = "alarms"
+    private const val K_EVENTS = "events"
+    private const val K_IDS = "scheduled"
+    private const val K_FIRED = "fired"
+
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private fun am(ctx: Context) = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    /** Полностью пересоздаёт все будильники и напоминания по данным страницы. */
+    fun sync(ctx: Context, json: String): String {
+        val root = JSONObject(json)
+        val alarms = root.optJSONArray("alarms") ?: JSONArray()
+        val events = root.optJSONArray("events") ?: JSONArray()
+
+        cancelAll(ctx)
+        prefs(ctx).edit()
+            .putString(K_ALARMS, alarms.toString())
+            .putString(K_EVENTS, events.toString())
+            .apply()
+
+        val keys = mutableSetOf<String>()
+        for (i in 0 until alarms.length()) {
+            val a = alarms.getJSONObject(i)
+            if (!a.optBoolean("on", true)) continue
+            if (scheduleAlarm(ctx, a)) keys.add("a" + a.getString("id"))
+        }
+        for (i in 0 until events.length()) {
+            val e = events.getJSONObject(i)
+            val at = eventTime(e) ?: continue
+            if (at <= System.currentTimeMillis()) continue
+            scheduleReminder(ctx, e.getString("id"), e.getString("title"), at)
+            keys.add("e" + e.getString("id"))
+        }
+        prefs(ctx).edit().putStringSet(K_IDS, keys).apply()
+        return "будильников ${alarms.length()}, напоминаний ${events.length()}"
+    }
+
+    /** Вызывается после перезагрузки телефона: ставим всё заново из сохранённого. */
+    fun rescheduleStored(ctx: Context) {
+        val p = prefs(ctx)
+        val json = JSONObject()
+            .put("alarms", JSONArray(p.getString(K_ALARMS, "[]")))
+            .put("events", JSONArray(p.getString(K_EVENTS, "[]")))
+        sync(ctx, json.toString())
+    }
+
+    /** После срабатывания: повторяющийся будильник ставим на следующий раз, разовый помечаем. */
+    fun afterFire(ctx: Context, key: String) {
+        val id = key.removePrefix("a")
+        val arr = JSONArray(prefs(ctx).getString(K_ALARMS, "[]"))
+        for (i in 0 until arr.length()) {
+            val a = arr.getJSONObject(i)
+            if (a.getString("id") != id) continue
+            val days = a.optJSONArray("days")
+            if (days == null || days.length() == 0) {
+                val fired = (prefs(ctx).getStringSet(K_FIRED, emptySet()) ?: emptySet()).toMutableSet()
+                fired.add(id)
+                prefs(ctx).edit().putStringSet(K_FIRED, fired).apply()
+            } else {
+                scheduleAlarm(ctx, a)
+            }
+            return
+        }
+    }
+
+    /** Страница забирает список сработавших разовых будильников, чтобы выключить их у себя. */
+    fun takeFired(ctx: Context): String {
+        val set = prefs(ctx).getStringSet(K_FIRED, emptySet()) ?: emptySet()
+        prefs(ctx).edit().remove(K_FIRED).apply()
+        return JSONArray(set.toList()).toString()
+    }
+
+    private fun cancelAll(ctx: Context) {
+        val keys = prefs(ctx).getStringSet(K_IDS, emptySet()) ?: emptySet()
+        for (k in keys) {
+            val pi = buildPi(ctx, k, null, null, PendingIntent.FLAG_NO_CREATE) ?: continue
+            am(ctx).cancel(pi)
+            pi.cancel()
+        }
+    }
+
+    private fun buildPi(ctx: Context, key: String, title: String?, label: String?, flags: Int): PendingIntent? {
+        val cls = if (key.startsWith("a")) AlarmReceiver::class.java else ReminderReceiver::class.java
+        val intent = Intent(ctx, cls)
+            .setData(Uri.parse("planer://$key"))
+            .putExtra("key", key)
+        title?.let { intent.putExtra("title", it) }
+        label?.let { intent.putExtra("label", it) }
+        return PendingIntent.getBroadcast(ctx, key.hashCode(), intent, flags or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    private fun scheduleAlarm(ctx: Context, a: JSONObject): Boolean {
+        val at = nextTime(a.getInt("h"), a.getInt("m"), a.optJSONArray("days")) ?: return false
+        val key = "a" + a.getString("id")
+        val pi = buildPi(ctx, key, null, a.optString("label", ""), PendingIntent.FLAG_UPDATE_CURRENT) ?: return false
+        val showIntent = PendingIntent.getActivity(
+            ctx, 0, Intent(ctx, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        try {
+            am(ctx).setAlarmClock(AlarmManager.AlarmClockInfo(at, showIntent), pi)
+        } catch (e: SecurityException) {
+            am(ctx).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        }
+        return true
+    }
+
+    private fun scheduleReminder(ctx: Context, id: String, title: String, at: Long) {
+        val pi = buildPi(ctx, "e$id", title, null, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
+        am(ctx).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+    }
+
+    /** Ближайшее будущее время h:m с учётом дней недели (0 = воскресенье, как в JS). */
+    private fun nextTime(h: Int, m: Int, days: JSONArray?): Long? {
+        val now = LocalDateTime.now()
+        for (d in 0..7) {
+            val cand = LocalDate.now().plusDays(d.toLong()).atTime(h, m)
+            if (!cand.isAfter(now)) continue
+            val pageDay = cand.dayOfWeek.value % 7
+            if (days != null && days.length() > 0) {
+                var ok = false
+                for (i in 0 until days.length()) {
+                    if (days.getInt(i) == pageDay) ok = true
+                }
+                if (!ok) continue
+            }
+            return cand.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
+        return null
+    }
+
+    private fun eventTime(e: JSONObject): Long? = try {
+        LocalDate.parse(e.getString("date"))
+            .atStartOfDay()
+            .plusMinutes(e.getInt("start").toLong())
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    } catch (ex: Exception) {
+        null
+    }
+}
+### FILE: app/src/main/java/com/planer/day/BootReceiver.kt
+package com.planer.day
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            AlarmStore.rescheduleStored(ctx)
+        }
+    }
+}
+### FILE: app/src/main/java/com/planer/day/ChallengeActivity.kt
+package com.planer.day
+
+import android.app.Activity
+import android.app.NotificationManager
+import android.graphics.Color
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.text.InputType
+import android.view.Gravity
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import kotlin.random.Random
+
+/** Экран будильника: три задания подряд, неверный ответ сбрасывает прогресс. */
+class ChallengeActivity : Activity() {
+
+    companion object {
+        private val PHRASES = listOf("Я встаю", "Доброе утро", "Пора вставать", "Сегодня будет хороший день")
+        private const val STEPS = 3
+    }
+
+    private var key = ""
+    private var step = 0
+    private var expected = ""
+    private var player: MediaPlayer? = null
+    private var tones: ToneGenerator? = null
+    private lateinit var stepView: TextView
+    private lateinit var taskView: TextView
+    private lateinit var input: EditText
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        key = intent.getStringExtra("key") ?: ""
+        val label = intent.getStringExtra("label").orEmpty()
+        setContentView(buildUi(label))
+        newTask()
+        startSound()
+    }
+
+    override fun onBackPressed() {
+        // Выйти без решения задачи нельзя
+    }
+
+    override fun onDestroy() {
+        stopSound()
+        super.onDestroy()
+    }
+
+    private fun buildUi(label: String): LinearLayout {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#0f0f1e"))
+            setPadding(dp(28), dp(28), dp(28), dp(28))
+        }
+
+        fun text(size: Float, color: String, pad: Int = 0) = TextView(this).apply {
+            textSize = size
+            setTextColor(Color.parseColor(color))
+            gravity = Gravity.CENTER
+            setPadding(0, pad, 0, pad)
+        }
+
+        val title = text(20f, "#ffffff").apply { this.text = label.ifBlank { "Будильник" } }
+        stepView = text(14f, "#99ffffff", dp(8))
+        taskView = text(24f, "#ffffff", dp(24))
+
+        input = EditText(this).apply {
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#66ffffff"))
+            hint = "Ответ"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setSingleLine(true)
+            setOnEditorActionListener { _, _, _ ->
+                check()
+                true
+            }
+        }
+
+        val btn = Button(this).apply {
+            text = "Проверить"
+            setOnClickListener { check() }
+        }
+
+        root.addView(title)
+        root.addView(stepView)
+        root.addView(taskView)
+        root.addView(input)
+        root.addView(btn)
+        return root
+    }
+
+    private fun newTask() {
+        input.setText("")
+        if (Random.nextBoolean()) {
+            val a = Random.nextInt(100, 1000)
+            val b = Random.nextInt(100, 1000)
+            expected = (a + b).toString()
+            taskView.text = "Сколько будет $a + $b ?"
+            input.inputType = InputType.TYPE_CLASS_NUMBER
+        } else {
+            expected = PHRASES.random()
+            taskView.text = "Напечатай:\n$expected"
+            input.inputType = InputType.TYPE_CLASS_TEXT
+        }
+        stepView.text = "Шаг ${step + 1} из $STEPS"
+    }
+
+    private fun check() {
+        val answer = input.text.toString().trim()
+        val ok = if (expected.all { it.isDigit() }) {
+            answer == expected
+        } else {
+            answer.equals(expected, ignoreCase = true)
+        }
+        if (!ok) {
+            wrong()
+            return
+        }
+        step++
+        if (step >= STEPS) finishAlarm() else newTask()
+    }
+
+    private fun wrong() {
+        tones?.startTone(ToneGenerator.TONE_PROP_NACK, 800)
+        Toast.makeText(this, "Неверно, начинаем сначала", Toast.LENGTH_SHORT).show()
+        step = 0
+        newTask()
+    }
+
+    private fun finishAlarm() {
+        getSystemService(NotificationManager::class.java).cancel(Notifier.notifId(key))
+        stopSound()
+        finish()
+    }
+
+    private fun startSound() {
+        tones = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(this@ChallengeActivity, uri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            // без звука, но с вибрацией
+        }
+        vibrateLoop()
+    }
+
+    private fun vibrateLoop() {
+        val v = getSystemService(Vibrator::class.java) ?: return
+        val pattern = longArrayOf(0, 900, 600)
+        if (Build.VERSION.SDK_INT >= 26) {
+            v.vibrate(VibrationEffect.createWaveform(pattern, 0))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(pattern, 0)
+        }
+    }
+
+    private fun stopSound() {
+        try {
+            player?.stop()
+        } catch (e: Exception) {
+        }
+        player?.release()
+        player = null
+        getSystemService(Vibrator::class.java)?.cancel()
+        tones?.release()
+        tones = null
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+}
+### FILE: app/src/main/java/com/planer/day/MainActivity.kt
+package com.planer.day
+
+import android.Manifest
+import android.app.Activity
+import android.app.AlarmManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.core.app.NotificationManagerCompat
+
+class MainActivity : Activity() {
+
+    private lateinit var web: WebView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Notifier.ensureChannels(this)
+
+        web = WebView(this)
+        setContentView(web)
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.webViewClient = WebViewClient()
+        web.addJavascriptInterface(Bridge(this), "AndroidPlaner")
+        web.loadUrl("file:///android_asset/index.html")
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+        if (Build.VERSION.SDK_INT >= 31) {
+            val am = getSystemService(AlarmManager::class.java)
+            if (!am.canScheduleExactAlarms()) {
+                Toast.makeText(this, "Разреши «Будильники и напоминания» для приложения", Toast.LENGTH_LONG).show()
+                try {
+                    startActivity(
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                            .setData(Uri.parse("package:" + packageName))
+                    )
+                } catch (e: Exception) {
+                }
+            }
+        }
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+            Toast.makeText(
+                this,
+                "Уведомления выключены. Включи их для приложения в настройках, иначе напоминания не придут",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    override fun onBackPressed() {
+        if (web.canGoBack()) web.goBack() else super.onBackPressed()
+    }
+
+    /** Мост: страница вызывает AndroidPlaner.sync(json) при каждом изменении. */
+    class Bridge(private val ctx: Context) {
+
+        companion object {
+            private var shownSummary = false
+        }
+
+        private fun toast(text: String) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun sync(json: String) {
+            try {
+                val summary = AlarmStore.sync(ctx, json)
+                if (!shownSummary) {
+                    shownSummary = true
+                    toast("Поставлено: $summary")
+                }
+            } catch (e: Exception) {
+                toast("Ошибка будильника: ${e.message}")
+            }
+        }
+
+        @JavascriptInterface
+        fun takeFired(): String = try {
+            AlarmStore.takeFired(ctx)
+        } catch (e: Exception) {
+            "[]"
+        }
+    }
+}
+### FILE: app/src/main/java/com/planer/day/Notifier.kt
+package com.planer.day
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+
+object Notifier {
+    const val CH_ALARM = "alarm_v1"
+    const val CH_REMIND = "remind_v1"
+
+    fun notifId(key: String): Int = key.hashCode()
+
+    fun ensureChannels(ctx: Context) {
+        if (Build.VERSION.SDK_INT < 26) return
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        // Звук будильника играет ChallengeActivity по кругу, поэтому у канала звука нет
+        val alarm = NotificationChannel(CH_ALARM, "Будильник", NotificationManager.IMPORTANCE_HIGH)
+        alarm.setSound(null, null)
+        alarm.enableVibration(true)
+        nm.createNotificationChannel(alarm)
+        nm.createNotificationChannel(
+            NotificationChannel(CH_REMIND, "Напоминания", NotificationManager.IMPORTANCE_DEFAULT)
+        )
+    }
+
+    fun showAlarm(ctx: Context, key: String, label: String) {
+        ensureChannels(ctx)
+        val full = Intent(ctx, ChallengeActivity::class.java)
+            .putExtra("key", key)
+            .putExtra("label", label)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pi = PendingIntent.getActivity(
+            ctx, notifId(key), full,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val n = NotificationCompat.Builder(ctx, CH_ALARM)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(label.ifBlank { "Будильник" })
+            .setContentText("Реши задачку, чтобы выключить")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOngoing(true)
+            .setFullScreenIntent(pi, true)
+            .setContentIntent(pi)
+            .build()
+        ctx.getSystemService(NotificationManager::class.java).notify(notifId(key), n)
+    }
+}
+### FILE: app/src/main/java/com/planer/day/ReminderReceiver.kt
+package com.planer.day
+
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import androidx.core.app.NotificationCompat
+
+class ReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        val key = intent.getStringExtra("key") ?: return
+        Notifier.ensureChannels(ctx)
+        val n = NotificationCompat.Builder(ctx, Notifier.CH_REMIND)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle(intent.getStringExtra("title") ?: "Напоминание")
+            .setContentText("Пора")
+            .setAutoCancel(true)
+            .build()
+        ctx.getSystemService(NotificationManager::class.java)
+            .notify(Notifier.notifId(key), n)
+    }
+}
+### FILE: app/src/main/res/drawable/ic_launcher_background.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:startColor="#2a3443"
+                android:endColor="#141a24" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#7d93ad" android:fillAlpha="0.18"
+        android:pathData="M54,50m-34,0a34,34 0 1,0 68,0a34,34 0 1,0 -68,0" />
+</vector>
+### FILE: app/src/main/res/drawable/ic_launcher_foreground.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#d8c8ab"
+        android:pathData="M34,28 h40 a5,5 0 0 1 5,5 v50 a5,5 0 0 1 -5,5 h-40 a5,5 0 0 1 -5,-5 v-50 a5,5 0 0 1 5,-5 z" />
+    <path android:fillColor="#f6f1e6"
+        android:pathData="M38,34 h32 v44 h-32 z" />
+    <path android:strokeColor="#b9a98c" android:strokeWidth="1.6" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M43,46 h22 M43,54 h22 M43,62 h18 M43,70 h20" />
+    <path android:strokeColor="#9c8a6e" android:strokeWidth="1.4"
+        android:fillColor="#00000000"
+        android:pathData="M31,34 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M31,44 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M31,54 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M31,64 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M31,74 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <path android:fillColor="#c99f86"
+        android:pathData="M22,102 C22,90 32,84 44,84 L70,84 C82,84 88,90 88,102 Z" />
+    <path android:fillColor="#b98d75"
+        android:pathData="M28,84 C22,78 24,70 30,68 C34,67 37,72 38,78 L40,84 Z" />
+</vector>
+### FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+### FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+### FILE: build.gradle.kts
+plugins {
+    id("com.android.application") version "8.5.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+}
+### FILE: gradle.properties
+org.gradle.jvmargs=-Xmx2048m
+android.useAndroidX=true
+kotlin.code.style=official
+### FILE: settings.gradle.kts
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "PlanerDnya"
+include(":app")
