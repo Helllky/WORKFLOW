@@ -77,6 +77,8 @@ dependencies {
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="true"
@@ -103,6 +105,15 @@ dependencies {
             android:excludeFromRecents="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
+
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps day planner alarms and reminders scheduled" />
+        </service>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".ReminderReceiver" android:exported="false" />
@@ -1298,6 +1309,57 @@ class ChallengeActivity : Activity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 }
+### FILE: app/src/main/java/com/planer/day/KeepAliveService.kt
+package com.planer.day
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+
+/**
+ * Держит приложение в статусе «работает» тихим постоянным уведомлением.
+ * Из-за этого системные оптимизаторы реже чистят приложение вместе с будильниками.
+ */
+class KeepAliveService : Service() {
+
+    companion object {
+        private const val CH_KEEP = "keep_v1"
+        private const val NOTIF_ID = 4242
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.createNotificationChannel(
+                NotificationChannel(CH_KEEP, "Работа в фоне", NotificationManager.IMPORTANCE_MIN)
+            )
+        }
+        val n: Notification = NotificationCompat.Builder(this, CH_KEEP)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Планер дня работает")
+            .setContentText("Будильники и напоминания активны")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIF_ID, n)
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
 ### FILE: app/src/main/java/com/planer/day/MainActivity.kt
 package com.planer.day
 
@@ -1327,6 +1389,12 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Notifier.ensureChannels(this)
+        try {
+            androidx.core.content.ContextCompat.startForegroundService(
+                this, Intent(this, KeepAliveService::class.java)
+            )
+        } catch (e: Exception) {
+        }
 
         web = WebView(this)
         setContentView(web)
