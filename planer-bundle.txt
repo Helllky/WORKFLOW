@@ -72,59 +72,22 @@ dependencies {
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- Для приложений-будильников Android выдаёт это автоматически, без экрана настроек -->
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-
     <application
         android:allowBackup="true"
         android:label="Планер дня"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".ChallengeActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:excludeFromRecents="true"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true" />
-
-        <service
-            android:name=".KeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps day planner alarms and reminders scheduled" />
-        </service>
-
-        <receiver android:name=".AlarmReceiver" android:exported="false" />
-        <receiver android:name=".ReminderReceiver" android:exported="false" />
-
-        <receiver android:name=".BootReceiver" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>
 ### FILE: app/src/main/assets/index.html
@@ -136,13 +99,25 @@ dependencies {
 <meta name="theme-color" content="#0f0f1e">
 <title>Планер дня (локально)</title>
 <style>
-:root{--accent:#8b5cf6;--accent-rgb:139,92,246;--o2:#3b82f6;--bg1:#0f0f1e;--bg2:#1a1a2e;--bg3:#16213e;--text:#f1f1f7;--muted:rgba(241,241,247,.55);--glass:rgba(255,255,255,.05);--border:rgba(255,255,255,.08)}
+:root{--w:255,255,255;--navbg:rgba(30,30,55,.55);--sheet:rgba(30,30,55,.9);--cs:dark;--sh:.4;--orb:.5;--shc:0,0,0;--hl:rgba(255,255,255,.06);--accent:#8b5cf6;--accent-rgb:139,92,246;--o2:#3b82f6;--bg1:#0f0f1e;--bg2:#1a1a2e;--bg3:#16213e;--text:#f1f1f7;--muted:rgba(241,241,247,.55);--glass:rgba(var(--w),.05);--border:rgba(var(--w),.08)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:300;color:var(--text);background:linear-gradient(135deg,var(--bg1) 0%,var(--bg2) 50%,var(--bg3) 100%);overflow:hidden;transition:background .6s}
-.orb{position:fixed;border-radius:50%;opacity:.5;z-index:0;pointer-events:none}
+.orb{position:fixed;border-radius:50%;opacity:var(--orb);z-index:0;pointer-events:none}
 .orb.a{width:340px;height:340px;background:radial-gradient(circle,var(--accent) 0%,transparent 68%);top:-90px;left:-110px}
 .orb.b{width:280px;height:280px;background:radial-gradient(circle,var(--o2) 0%,transparent 68%);bottom:12%;right:-120px}
+/* орбы: медленный дрейф + мягкая пульсация (в настройках можно выключить по отдельности) */
+.orb{will-change:transform,opacity}
+@keyframes orbDriftA{0%,100%{transform:translate(0,0)}33%{transform:translate(70px,45px)}66%{transform:translate(25px,95px)}}
+@keyframes orbDriftB{0%,100%{transform:translate(0,0)}35%{transform:translate(-60px,-70px)}70%{transform:translate(-110px,-20px)}}
+@keyframes orbPulse{0%,100%{opacity:var(--orb);scale:1}50%{opacity:calc(var(--orb)*1.35);scale:1.12}}
+.orb.a{animation:orbDriftA 46s ease-in-out infinite,orbPulse 8s ease-in-out infinite}
+.orb.b{animation:orbDriftB 54s ease-in-out -14s infinite,orbPulse 11s ease-in-out -4s infinite}
+body.om .orb.a{animation:orbPulse 8s ease-in-out infinite}
+body.om .orb.b{animation:orbPulse 11s ease-in-out -4s infinite}
+body.op .orb.a{animation:orbDriftA 46s ease-in-out infinite}
+body.op .orb.b{animation:orbDriftB 54s ease-in-out -14s infinite}
+body.om.op .orb{animation:none}
 .noise{position:fixed;inset:0;opacity:.02;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
 header{padding:calc(env(safe-area-inset-top,0px) + 18px) 20px 10px}
@@ -166,15 +141,15 @@ nav button{position:relative;transition:color .3s,background .3s,transform .2s}
 nav button:active{transform:scale(.94)}
 nav button.on b{transform:translateY(-1px);text-shadow:0 0 12px rgba(var(--accent-rgb),.8)}
 nav button b{transition:transform .3s,text-shadow .3s}
-.glass-card{background:var(--glass);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--border);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1);position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.4,0,.2,1),border-color .3s}
+.glass-card{background:var(--glass);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--border);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:0 8px 32px rgba(var(--shc),var(--sh)),inset 0 1px 0 var(--hl);position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.4,0,.2,1),border-color .3s}
 @media (hover:hover){.glass-card:hover{transform:translateY(-2px);border-color:rgba(var(--accent-rgb),.45)}}
-.glass-card::before{content:"";position:absolute;inset:0 0 auto 0;height:40%;background:linear-gradient(180deg,rgba(255,255,255,.06),transparent);pointer-events:none}
+.glass-card::before{content:"";position:absolute;inset:0 0 auto 0;height:40%;background:linear-gradient(180deg,var(--hl),transparent);pointer-events:none}
 .h{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:400}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .btn{background:rgba(var(--accent-rgb),.22);border:1px solid rgba(var(--accent-rgb),.5);padding:9px 16px;border-radius:12px;transition:.3s cubic-bezier(.4,0,.2,1)}
 .btn:hover{background:rgba(var(--accent-rgb),.35);transform:translateY(-1px)}
 .btn.ghost{background:var(--glass);border-color:var(--border)}
-input,select{font:inherit;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:10px 12px;outline:none;color-scheme:dark}
+input,select{font:inherit;color:var(--text);background:rgba(var(--w),.06);border:1px solid var(--border);border-radius:12px;padding:10px 12px;outline:none;color-scheme:var(--cs)}
 input:focus,select:focus{border-color:rgba(var(--accent-rgb),.6)}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .grow{flex:1;min-width:0}
@@ -184,32 +159,32 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.6)}
 .chip.on{background:rgba(var(--accent-rgb),.3);border-color:rgba(var(--accent-rgb),.6)}
 .swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;transition:.2s}
 .swatch.on{border-color:#fff;transform:scale(1.1)}
-.toggle{width:46px;height:26px;border-radius:999px;background:rgba(255,255,255,.12);position:relative;transition:.3s;flex-shrink:0}
+.toggle{width:46px;height:26px;border-radius:999px;background:rgba(var(--w),.12);position:relative;transition:.3s;flex-shrink:0}
 .toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s cubic-bezier(.4,0,.2,1)}
 .toggle.on{background:var(--accent)}.toggle.on::after{transform:translateX(20px)}
 .prio{width:12px;height:12px;border-radius:50%;flex-shrink:0}
 .p1{background:#ef4444}.p2{background:#f59e0b}.p3{background:#22c55e}
 .task{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
 .task:last-child{border-bottom:0}
-.check{width:22px;height:22px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);display:grid;place-items:center;flex-shrink:0;font-size:13px}
+.check{width:22px;height:22px;border-radius:7px;border:1.5px solid rgba(var(--w),.3);display:grid;place-items:center;flex-shrink:0;font-size:13px}
 .check.on{background:var(--accent);border-color:var(--accent)}
 .task.done .t{text-decoration:line-through;opacity:.45}
 .t{flex:1;font-size:15px;word-break:break-word}
 .del{color:var(--muted);font-size:20px;padding:4px 8px}
-.bar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar{height:6px;border-radius:999px;background:rgba(var(--w),.08);overflow:hidden}
 .bar>i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .4s}
 .tl{position:relative;height:1080px;margin-top:6px}
-.hl{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.06);font-size:11px;color:var(--muted)}
+.hl{position:absolute;left:0;right:0;border-top:1px solid rgba(var(--w),.06);font-size:11px;color:var(--muted)}
 .hl span{position:absolute;left:0;top:-8px}
-.ev{position:absolute;left:50px;right:4px;border-radius:14px;padding:6px 12px;border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);cursor:grab;touch-action:none;user-select:none;font-size:14px;overflow:hidden;transition:box-shadow .2s}
+.ev{position:absolute;left:50px;right:4px;border-radius:14px;padding:6px 12px;border:1px solid rgba(var(--w),.14);backdrop-filter:blur(10px);cursor:grab;touch-action:none;user-select:none;font-size:14px;overflow:hidden;transition:box-shadow .2s}
 .ev.drag{box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:grabbing}
 .ev small{display:block;color:var(--muted);font-size:12px}
 .ev{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;padding-right:34px}
 .ev-more{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;color:var(--text);opacity:.75;font-size:18px;line-height:28px;text-align:center}
-.ev-more:active{background:rgba(255,255,255,.14)}
+.ev-more:active{background:rgba(var(--w),.14)}
 #evSheet{position:fixed;inset:0;z-index:20;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #evSheet.open{display:flex;animation:fadeIn .2s ease}
-#evSheet .sheet{width:100%;max-width:520px;margin:0 12px calc(env(safe-area-inset-bottom,0px) + 12px);padding:18px;border-radius:24px;background:rgba(30,30,55,.9);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.5);animation:sheetUp .3s cubic-bezier(.22,.8,.3,1)}
+#evSheet .sheet{width:100%;max-width:520px;margin:0 12px calc(env(safe-area-inset-bottom,0px) + 12px);padding:18px;border-radius:24px;background:var(--sheet);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.5);animation:sheetUp .3s cubic-bezier(.22,.8,.3,1)}
 #evSheet button.opt{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:14px;margin-top:8px;background:var(--glass);border:1px solid var(--border);font-size:16px}
 #evSheet button.opt.danger{color:#f87171}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -218,27 +193,34 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.6)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
 .cal-grid .wd{font-size:11px;color:var(--muted);padding-bottom:4px}
 .day{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:14px;border:1px solid transparent;transition:.2s}
-.day:hover{background:rgba(255,255,255,.06)}
+.day:hover{background:rgba(var(--w),.06)}
 .day.out{opacity:.25}.day.today{border-color:var(--accent)}.day.sel{background:rgba(var(--accent-rgb),.3)}
 .dots{display:flex;gap:3px;height:6px}
 .dots i{width:5px;height:5px;border-radius:50%}
 .week{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:8px}
 .week div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;font-size:11px;color:var(--muted)}
 .week i{width:100%;border-radius:8px;background:rgba(var(--accent-rgb),.6);min-height:3px;transition:height .4s}
-nav{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:5;display:flex;justify-content:space-around;padding:6px;border-radius:24px;background:rgba(30,30,55,.55);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+nav{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:5;display:flex;justify-content:space-around;padding:6px;border-radius:24px;background:var(--navbg);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--border);box-shadow:0 8px 32px rgba(var(--shc),var(--sh))}
 nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;font-size:11px;color:var(--muted);border-radius:16px;transition:.3s}
 nav button b{font-size:18px;font-weight:400}
 nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
 #toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;z-index:10;display:none;margin:0}
+#starFly{position:fixed;left:0;top:0;width:64px;height:64px;z-index:3;pointer-events:none;display:none;transition:transform 6s ease-in-out;will-change:transform}
+body[data-tab=home] #starFly{display:block}
+#starFly svg{width:100%;height:100%;display:block;overflow:visible;filter:drop-shadow(0 1px 3px rgba(20,15,40,.55));animation:float 3.6s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-5px) rotate(4deg)}}
+.chip.lock{opacity:.45}
+body.noanim *,body.noanim *::before,body.noanim *::after{animation:none!important;transition:none!important}
+body.nosvg #starFly{display:none!important}
 </style>
 </head>
-<body>
+<body data-tab="home">
 <div class="orb a"></div><div class="orb b"></div>
 
 <div class="app">
-  <header>
+  <header style="position:relative">
     <h1 id="greet">Привет</h1>
-    <p id="dateLine"></p>
+    <p id="dateLine"></p><button id="gear" aria-label="Настройки" style="position:absolute;right:16px;top:calc(env(safe-area-inset-top,0px) + 18px);font-size:22px;padding:6px 10px">⚙</button>
   </header>
 
   <main>
@@ -247,8 +229,9 @@ nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
       <div class="glass-card">
         <div class="h">Сейчас</div>
         <div class="big" id="clock">--:--</div>
-        <div class="muted" id="nextAlarm" style="margin-top:4px"></div>
       </div>
+      <div class="glass-card" id="homeSleep"></div>
+      <div class="glass-card" id="petCard"></div>
       <div class="glass-card">
         <div class="h">Настроение</div>
         <div class="row" id="moodRow" style="justify-content:space-between"></div>
@@ -259,10 +242,7 @@ nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
         <div class="bar"><i id="progBar" style="width:0"></i></div>
         <div class="muted" id="progTxt" style="margin-top:10px"></div>
       </div>
-      <div class="glass-card">
-        <div class="h">Акцентный цвет</div>
-        <div class="row" id="swatches"></div>
-      </div>
+      
     </section>
 
     <!-- ЗАДАЧИ -->
@@ -279,29 +259,6 @@ nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
       <div class="glass-card" style="padding:4px 16px">
         <div id="taskList"></div>
         <div class="muted" id="taskEmpty" style="padding:14px 0;display:none">Пусто. Добавь первую метку выше.</div>
-      </div>
-    </section>
-
-    <!-- РАСПИСАНИЕ ДНЯ -->
-    <section class="screen" id="s-day">
-      <div class="glass-card">
-        <div class="h">Новое событие</div>
-        <input id="evTitle" placeholder="Название" style="width:100%;margin-bottom:10px">
-        <div class="row">
-          <input id="evStart" type="time" value="09:00" style="flex:1">
-          <select id="evDur" style="flex:1">
-            <option value="30">30 мин</option>
-            <option value="60" selected>1 час</option>
-            <option value="90">1.5 часа</option>
-            <option value="120">2 часа</option>
-          </select>
-        </div>
-        <div class="row" id="evCats" style="margin-top:10px"></div>
-        <button class="btn" id="evAdd" style="margin-top:12px;width:100%">Добавить</button>
-      </div>
-      <div class="glass-card" style="padding:12px 12px 12px 8px">
-        <div class="h" style="padding-left:8px">Расписание · тяни карточку, чтобы поменять время</div>
-        <div class="tl" id="tl"></div>
       </div>
     </section>
 
@@ -333,59 +290,40 @@ nav button.on{color:var(--text);background:rgba(var(--accent-rgb),.22)}
         <div class="h">Статистика</div>
         <div id="sStats"></div>
       </div>
-      <div class="glass-card">
-        <div class="h">Будильники</div>
-        <div class="row" style="margin-bottom:12px">
-          <input id="alTime" type="time" value="07:00" style="flex:1">
-          <input id="alLabel" placeholder="Подпись" style="flex:1">
-        </div>
-        <div class="row" id="alDays" style="gap:6px;margin-bottom:12px"></div>
-        <button class="btn" id="alAdd" style="width:100%">Добавить будильник</button>
-        <div id="alList" style="margin-top:14px"></div>
-      </div>
+      </section>
+  <section class="screen" id="s-settings">
+      <div class="glass-card"><div class="h">Тема</div><div class="row" id="themeRow"></div></div>
+      <div class="glass-card"><div class="h">Акцентный цвет</div><div class="row" id="swatches" style="gap:12px"></div></div>
+      <div class="glass-card"><div class="h">Фоновые орбы</div><div class="row" id="orbRow"></div></div>
+      <div class="glass-card"><div class="h">Анимации и графика</div><div class="row" id="gfxRow"></div><div class="muted" style="font-size:12px;margin-top:8px">Анимации выключают всё движение: Стара, орбы, переходы. SVG-графика отвечает за самого Стара.</div></div>
     </section>
   </main>
 
   <nav id="nav">
     <button data-tab="home" class="on"><b>⌂</b>Главная</button>
     <button data-tab="tasks"><b>✓</b>Задачи</button>
-    <button data-tab="day"><b>▤</b>День</button>
     <button data-tab="cal"><b>▦</b>Календарь</button>
     <button data-tab="sleep"><b>☾</b>Сон</button>
   </nav>
 </div>
 
 <div id="toast" class="glass-card"></div>
-<div id="evSheet"><div class="sheet" id="evSheetBox"></div></div>
+<div id="starFly"></div>
 
 <script>
 /* ===================== ДАННЫЕ ===================== */
 const KEY = 'planer.v1';
-const ACC = {purple:'#8b5cf6', blue:'#3b82f6', emerald:'#10b981', pink:'#ec4899', amber:'#f59e0b', teal:'#14b8a6'};
+const ACC = [{k:'purple',h:262,s:84},{k:'blue',h:217,s:90},{k:'cyan',h:192,s:85},{k:'teal',h:172,s:75},{k:'emerald',h:152,s:70},{k:'lime',h:88,s:65},{k:'amber',h:38,s:92},{k:'orange',h:20,s:90},{k:'red',h:352,s:80},{k:'pink',h:330,s:80},{k:'magenta',h:295,s:70},{k:'coffee',h:26,s:48},{k:'graphite',h:215,s:14}];
 const MOODS = ['😢','😕','😐','🙂','😄'];
 const MOOD_TXT = ['Плохо','Так себе','Нормально','Хорошо','Отлично'];
 const MCOL = ['#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
 const CATS = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899'];
 const DAYS = [['Пн',1],['Вт',2],['Ср',3],['Чт',4],['Пт',5],['Сб',6],['Вс',0]];
-const DEF = {tasks:[], events:[], alarms:[], moods:{}, sleeps:[], accent:'purple', filter:'all', sleepNow:null, hiddenAt:null, selDay:null};
+const DEF = {tasks:[], events:[], alarms:[], moods:{}, sleeps:[], accent:'purple', theme:'auto', petName:'Стар', skin:null, anim:true, svg:true, orbMove:true, orbPulse:true, active:{}, wear:{}, seen:[], filter:'all', sleepNow:null, hiddenAt:null, selDay:null};
 
 let S = Object.assign({}, DEF);
-let docRef = null;
 try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e) {}
-/* Мост к Android: если страница открыта в приложении, будильники и напоминания ставит система */
-function syncNative(){
-  if (!window.AndroidPlaner) return;
-  try { AndroidPlaner.sync(JSON.stringify({alarms:S.alarms, events:S.events})); } catch(e) {}
-}
-let writeChain = Promise.resolve();
-const save = () => {
-  localStorage.setItem(KEY, JSON.stringify(S));
-  syncNative();
-  if (docRef) {
-    const data = JSON.parse(JSON.stringify(S));
-    writeChain = writeChain.then(() => docRef.set(data)).catch(() => {});
-  }
-};
+const save = () => localStorage.setItem(KEY, JSON.stringify(S));
 
 /* ===================== ХЕЛПЕРЫ ===================== */
 const $ = s => document.querySelector(s);
@@ -400,26 +338,35 @@ const sleepColor = min => min >= 420 ? '#22c55e' : min >= 300 ? '#eab308' : '#ef
 const sortTasks = (a,b) => (a.done - b.done) || (a.prio - b.prio);
 
 /* ===================== ТЕМА ===================== */
-/* Тема под акцент: цвет кнопок, темный фон в том же тоне и второй орб */
-const THEME = {
-  purple:  {bg:['#0f0f1e','#1a1a2e','#16213e'], o2:'#3b82f6'},
-  blue:    {bg:['#050a1f','#0a1636','#0d2150'], o2:'#06b6d4'},
-  emerald: {bg:['#03120c','#082217','#0b3024'], o2:'#84cc16'},
-  pink:    {bg:['#170713','#250a20','#33102d'], o2:'#a855f7'},
-  amber:   {bg:['#150e03','#241806','#33230a'], o2:'#f97316'},
-  teal:    {bg:['#031416','#082428','#0b3439'], o2:'#22d3ee'}
-};
+const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+const hsl = (h,s,l) => { s/=100; l/=100; const a = s*Math.min(l,1-l); return [0,8,4].map(n => { const k=(n+h/30)%12; return Math.round(255*(l - a*Math.max(-1,Math.min(k-3,9-k,1)))); }); };
 function applyAccent(k){
-  const hex = ACC[k], th = THEME[k];
-  const n = parseInt(hex.slice(1),16);
-  const rs = document.documentElement.style;
-  rs.setProperty('--accent', hex);
-  rs.setProperty('--accent-rgb', [n>>16, (n>>8)&255, n&255].join(','));
-  rs.setProperty('--o2', th.o2);
-  rs.setProperty('--bg1', th.bg[0]);
-  rs.setProperty('--bg2', th.bg[1]);
-  rs.setProperty('--bg3', th.bg[2]);
+  const a = ACC.find(x => x.k === (k || S.accent)) || ACC[0];
+  const light = S.theme === 'light' || (S.theme === 'auto' && mq && mq.matches);
+  const sat = a.s > 30 ? 1 : .25;
+  const lum = c => { const f = v => { v /= 255; return v <= .03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); }; return .2126*f(c[0]) + .7152*f(c[1]) + .0722*f(c[2]); };
+  let L = light ? 46 : 62, rgb = hsl(a.h, a.s * (light ? .85 : 1), L);
+  // в светлой теме акцент темнеет, пока не станет читаемым на латте
+  if (light) { const bg = lum(hsl(32,46,89)); while (L > 20 && (bg+.05)/(lum(rgb)+.05) < 3.2) { L -= 2; rgb = hsl(a.h, a.s*.85, L); } }
+  const mx = (p,q,t) => p.map((v,i) => Math.round(v + (q[i]-v)*t));
+  const tint = mx(hsl(a.h, Math.min(a.s,75)*.8, 58), [150,110,80], .3), kk = a.s > 30 ? 1 : .4;
+  const bgL = [[252,246,238],[243,230,213],[232,212,189]].map((c,i) => `rgb(${mx(c, tint, (.10+.06*i)*kk)})`);
+  const w = light ? '92,64,45' : '255,255,255'; // слои в светлой теме кофейные, не чёрные
+  const V = light ? {
+    '--bg1':bgL[0], '--bg2':bgL[1], '--bg3':bgL[2],
+    '--o2':`rgb(${mx(rgb,[205,150,100],.45)})`, '--text':'#3b2a20', '--muted':'rgba(59,42,32,.62)',
+    '--glass':`rgba(${mx([255,251,246],tint,.08)},.64)`, '--hl':'rgba(255,255,255,.55)', '--navbg':'rgba(255,248,240,.78)', '--sheet':'rgba(255,250,244,.97)',
+    '--cs':'light', '--sh':'.16', '--orb':'.35', '--shc':'70,44,24'
+  } : {
+    '--bg1':`hsl(${a.h} ${50*sat}% 5%)`, '--bg2':`hsl(${a.h} ${42*sat}% 9%)`, '--bg3':`hsl(${a.h} ${40*sat}% 13%)`,
+    '--o2':`hsl(${(a.h+40)%360} ${a.s}% 50%)`, '--text':'#f1f1f7', '--muted':'rgba(241,241,247,.55)',
+    '--glass':'rgba(255,255,255,.05)', '--hl':'rgba(255,255,255,.06)', '--navbg':'rgba(30,30,55,.55)', '--sheet':'rgba(30,30,55,.9)',
+    '--cs':'dark', '--sh':'.4', '--orb':'.5', '--shc':'0,0,0'
+  };
+  Object.assign(V, {'--accent':`rgb(${rgb})`, '--accent-rgb':rgb.join(','), '--w':w, '--border':`rgba(${w},${light?.16:.1})`});
+  for (const n in V) document.documentElement.style.setProperty(n, V[n]);
 }
+if (mq && mq.addEventListener) mq.addEventListener('change', () => { if (S.theme === 'auto') applyAccent(); });
 function setAccent(k){
   S.accent = k;
   applyAccent(k);
@@ -428,12 +375,13 @@ function setAccent(k){
 
 /* ===================== НАВИГАЦИЯ ===================== */
 const RENDER = {};
-const TABS = ['home','tasks','day','cal','sleep'];
-const curTab = () => { const b = document.querySelector('nav button.on'); return b ? b.dataset.tab : 'home'; };
-function show(tab){
+const TABS = ['home','tasks','cal','sleep'];
+let currentTab = 'home', prevTab = 'home';
+const curTab = () => currentTab;
+function show(tab, forceDir){
   const prev = curTab();
   if (tab === prev && document.querySelector('#s-'+tab).classList.contains('active')) return;
-  const dir = TABS.indexOf(tab) >= TABS.indexOf(prev) ? 'from-right' : 'from-left';
+  const dir = forceDir || (TABS.indexOf(tab) >= TABS.indexOf(prev) ? 'from-right' : 'from-left');
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.remove('from-left','from-right');
     s.classList.toggle('active', s.id === 's-'+tab);
@@ -442,6 +390,8 @@ function show(tab){
   el.classList.add(dir);
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelector('main').scrollTop = 0;
+  currentTab = tab; if (tab !== 'settings') prevTab = tab;
+  document.body.dataset.tab = tab;
   RENDER[tab] && RENDER[tab]();
 }
 
@@ -452,7 +402,7 @@ function renderHome(){
   $('#moodRow').innerHTML = MOODS.map((m,i) =>
     `<button class="chip ${mood===i+1?'on':''}" data-m="${i+1}" style="font-size:24px;padding:6px 10px">${m}</button>`).join('');
   $('#moodRow').querySelectorAll('button').forEach(b => b.onclick = () => {
-    S.moods[today] = +b.dataset.m; save(); renderHome();
+    S.moods[today] = +b.dataset.m; save(); markActive(); renderHome(); renderPet();
   });
   $('#moodMsg').textContent = mood ? 'Сегодня: ' + MOOD_TXT[mood-1] : 'Как ты сегодня?';
 
@@ -461,26 +411,6 @@ function renderHome(){
   $('#progBar').style.width = (tt.length ? done/tt.length*100 : 0) + '%';
   $('#progTxt').textContent = tt.length ? `${done} из ${tt.length} выполнено` : 'На сегодня задач нет';
 
-  $('#swatches').innerHTML = Object.keys(ACC).map(k =>
-    `<button class="swatch ${S.accent===k?'on':''}" style="background:${ACC[k]}" data-a="${k}"></button>`).join('');
-  $('#swatches').querySelectorAll('button').forEach(b => b.onclick = () => setAccent(b.dataset.a));
-}
-
-function nextAlarmText(){
-  const now = new Date(); let best = null;
-  S.alarms.filter(a => a.on).forEach(a => {
-    for (let d = 0; d < 8; d++){
-      const c = new Date(now); c.setDate(now.getDate()+d); c.setHours(a.h, a.m, 0, 0);
-      if (c > now && (a.days.length === 0 || a.days.includes(c.getDay()))){
-        if (!best || c < best) best = c;
-        break;
-      }
-    }
-  });
-  if (!best) return 'Будильников нет';
-  const diff = best - now;
-  return 'Будильник в ' + pad(best.getHours())+':'+pad(best.getMinutes()) +
-         ' · через ' + Math.floor(diff/3600000) + 'ч ' + Math.floor(diff%3600000/60000) + 'м';
 }
 
 /* ===================== ЗАДАЧИ ===================== */
@@ -508,102 +438,6 @@ function renderTasks(){
       <button class="del" data-act="del" data-id="${t.id}">×</button>
     </div>`).join('');
   $('#taskEmpty').style.display = list.length ? 'none' : 'block';
-}
-
-/* ===================== РАСПИСАНИЕ ДНЯ ===================== */
-let newCat = 0, drag = null;
-function renderDay(){
-  $('#evCats').innerHTML = CATS.map((c,i) =>
-    `<button class="swatch ${newCat===i?'on':''}" style="background:${c};width:24px;height:24px" data-c="${i}"></button>`).join('');
-  $('#evCats').querySelectorAll('button').forEach(b => b.onclick = () => { newCat = +b.dataset.c; renderDay(); });
-
-  const tl = $('#tl');
-  let html = '';
-  for (let h = 6; h <= 23; h++) html += `<div class="hl" style="top:${(h-6)*60}px"><span>${pad(h)}:00</span></div>`;
-  const now = new Date(), nowMin = now.getHours()*60 + now.getMinutes();
-  if (nowMin >= 360 && nowMin <= 1380) html += `<div class="nowline" style="top:${nowMin-360}px"></div>`;
-  S.events.filter(e => e.date === dayKey()).forEach(e => {
-    html += `<div class="ev" data-id="${e.id}" data-start="${e.start}" data-dur="${e.dur}"
-      style="top:${e.start-360}px;height:${Math.max(e.dur,30)}px;background:${e.color}40;border-color:${e.color}80">
-      <b style="font-weight:400">${esc(e.title)}</b><small>${hhmm(e.start)}–${hhmm(e.start+e.dur)}</small><button class="ev-more" data-more="${e.id}" aria-label="действия">⋮</button></div>`;
-  });
-  tl.innerHTML = html;
-  bindDrag();
-}
-
-function bindDrag(){
-  document.querySelectorAll('#tl .ev').forEach(el => {
-    el.oncontextmenu = e => e.preventDefault();
-    el.onpointerdown = e => {
-      drag = {el, id: el.dataset.id, y: e.clientY, start: +el.dataset.start, dur: +el.dataset.dur, moved: false, cur: null, timer: null};
-      el.setPointerCapture(e.pointerId); el.classList.add('drag');
-      drag.timer = setTimeout(() => {
-        if (!drag || drag.el !== el || drag.moved) return;
-        const id = drag.id;
-        endDrag();
-        openEventMenu(id);
-      }, 500);
-    };
-    el.onpointermove = e => {
-      if (!drag || drag.el !== el) return;
-      const dy = e.clientY - drag.y;
-      if (Math.abs(dy) > 4 && !drag.moved) { drag.moved = true; clearTimeout(drag.timer); }
-      let s = Math.round((drag.start + dy)/15)*15;               // шаг 15 минут, 1px = 1 минута
-      s = Math.max(360, Math.min(1380 - drag.dur, s));
-      drag.cur = s; el.style.top = (s-360) + 'px';
-    };
-    el.onpointerup = () => {
-      if (!drag) return;
-      clearTimeout(drag.timer);
-      if (drag.moved && drag.cur != null){
-        const ev = S.events.find(x => x.id === drag.id);
-        if (ev){ ev.start = drag.cur; save(); }
-      }
-      drag = null; renderDay();
-    };
-  });
-}
-
-/* ===================== ДЕЙСТВИЯ С СОБЫТИЕМ ===================== */
-let editId = null;
-function endDrag(){
-  if (drag){ clearTimeout(drag.timer); drag.el.classList.remove('drag'); }
-  drag = null;
-}
-function openEventMenu(id){
-  const ev = S.events.find(x => x.id === id);
-  if (!ev) return;
-  const box = $('#evSheetBox');
-  box.innerHTML = `
-    <div class="h">${esc(ev.title)}</div>
-    <div class="muted" style="margin-bottom:6px">${hhmm(ev.start)}–${hhmm(ev.start+ev.dur)}</div>
-    <button class="opt" data-o="edit">Изменить</button>
-    <button class="opt danger" data-o="del">Удалить</button>
-    <button class="opt" data-o="cancel">Отмена</button>`;
-  $('#evSheet').classList.add('open');
-  box.onclick = e => {
-    const b = e.target.closest('[data-o]'); if (!b) return;
-    closeEventMenu();
-    if (b.dataset.o === 'edit') startEditEvent(id);
-    if (b.dataset.o === 'del') {
-      S.events = S.events.filter(x => x.id !== id);
-      save(); renderDay();
-    }
-  };
-}
-function closeEventMenu(){ $('#evSheet').classList.remove('open'); }
-$('#evSheet').addEventListener('click', e => { if (e.target.id === 'evSheet') closeEventMenu(); });
-function startEditEvent(id){
-  const ev = S.events.find(x => x.id === id);
-  if (!ev) return;
-  editId = id;
-  $('#evTitle').value = ev.title;
-  $('#evStart').value = hhmm(ev.start);
-  $('#evDur').value = ['30','60','90','120'].includes(String(ev.dur)) ? String(ev.dur) : '60';
-  newCat = Math.max(0, CATS.indexOf(ev.color));
-  $('#evAdd').textContent = 'Сохранить';
-  document.querySelector('main').scrollTop = 0;
-  renderDay();
 }
 
 /* ===================== КАЛЕНДАРЬ ===================== */
@@ -641,7 +475,6 @@ function renderCalDetail(key){
   const mood = S.moods[key];
   const sl = sleepFor(key);
   const tasks = S.tasks.filter(t => t.date === key).sort(sortTasks);
-  const evs = S.events.filter(e => e.date === key).sort((a,b) => a.start-b.start);
   $('#calDetail').innerHTML = `
     <div class="glass-card">
       <div class="h">${d.toLocaleDateString('ru-RU',{weekday:'long', day:'numeric', month:'long'})}</div>
@@ -651,8 +484,7 @@ function renderCalDetail(key){
       <div style="margin-bottom:12px">Сон: ${sl ? `<span style="color:${sleepColor(sl)}">${fmtDur(sl)}</span>` : '—'}</div>
       <div class="h" style="margin-top:6px">Задачи</div>
       ${tasks.length ? tasks.map(t => `<div class="muted" style="padding:4px 0;${t.done?'text-decoration:line-through;opacity:.5':''}">${esc(t.text)}</div>`).join('') : '<div class="muted">Нет задач</div>'}
-      <div class="h" style="margin-top:12px">События</div>
-      ${evs.length ? evs.map(e => `<div class="muted" style="padding:4px 0">${hhmm(e.start)} · ${esc(e.title)}</div>`).join('') : '<div class="muted">Нет событий</div>'}
+      
     </div>`;
 }
 
@@ -686,7 +518,7 @@ function renderSleep(){
       <div class="muted" style="margin:6px 0 14px">С ${hhmm(new Date(s.sleepStart).getHours()*60+new Date(s.sleepStart).getMinutes())}</div>
       <button class="btn" data-act="wake">Проснулся</button>`;
   }
-  $('#sTrack').innerHTML = html;
+  $('#sTrack').innerHTML = html; $('#homeSleep').innerHTML = html;
 
   const last7 = S.sleeps.slice(-7);
   const avg = last7.length ? last7.reduce((a,x) => a+x.minutes, 0)/last7.length : 0;
@@ -699,73 +531,6 @@ function renderSleep(){
   $('#sStats').innerHTML = `
     <div class="muted">Средняя за последние ночи: <span style="color:var(--text)">${last7.length ? fmtDur(avg) : '—'}</span></div>
     <div class="week">${bars}</div>`;
-}
-
-/* ===================== БУДИЛЬНИК ===================== */
-let alDays = [], lastFire = '', stopBeep = null, actx = null;
-
-function renderAlarms(){
-  $('#alDays').innerHTML = DAYS.map(([l,v]) =>
-    `<button class="chip ${alDays.includes(v)?'on':''}" data-d="${v}">${l}</button>`).join('');
-  $('#alDays').querySelectorAll('button').forEach(b => b.onclick = () => {
-    const v = +b.dataset.d;
-    alDays = alDays.includes(v) ? alDays.filter(x => x!==v) : [...alDays, v];
-    renderAlarms();
-  });
-
-  $('#alList').innerHTML = S.alarms.map(a => {
-    const dn = a.days.length ? DAYS.filter(([,v]) => a.days.includes(v)).map(([l]) => l).join(' ') : 'Один раз';
-    return `<div class="task">
-      <div class="grow">
-        <div style="font-size:24px;font-weight:300">${pad(a.h)}:${pad(a.m)}</div>
-        <div class="muted">${esc(a.label || 'Будильник')} · ${dn}</div>
-      </div>
-      <button class="toggle ${a.on?'on':''}" data-act="aton" data-id="${a.id}"></button>
-      <button class="del" data-act="adel" data-id="${a.id}">×</button>
-    </div>`;
-  }).join('') || '<div class="muted">Будильников нет</div>';
-  $('#nextAlarm') && ($('#nextAlarm').textContent = nextAlarmText());
-}
-
-function beep(){
-  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-  let n = 0;
-  const iv = setInterval(() => {
-    if (actx.state === 'suspended') actx.resume();
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = 'sine'; o.frequency.value = 880;
-    g.gain.setValueAtTime(.25, actx.currentTime);
-    g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + .35);
-    o.connect(g).connect(actx.destination);
-    o.start(); o.stop(actx.currentTime + .4);
-    if (++n >= 40) clearInterval(iv);
-  }, 700);
-  return () => clearInterval(iv);
-}
-
-function fireAlarm(a){
-  const t = $('#toast');
-  t.innerHTML = `<div class="h">Будильник</div>
-    <div class="row" style="justify-content:space-between"><span style="font-size:18px">${esc(a.label || 'Подъём')}</span>
-    <button class="btn" id="stopAl">Стоп</button></div>`;
-  t.style.display = 'block';
-  stopBeep = beep();
-  $('#stopAl').onclick = () => { stopBeep && stopBeep(); t.style.display = 'none'; };
-}
-
-function checkAlarms(){
-  if (window.AndroidPlaner) return; // в приложении звонит нативный будильник
-  const n = new Date();
-  S.alarms.forEach(a => {
-    if (!a.on || a.h !== n.getHours() || a.m !== n.getMinutes()) return;
-    if (a.days.length && !a.days.includes(n.getDay())) return;
-    const k = a.id + dayKey(n) + a.h + a.m;
-    if (lastFire === k) return;
-    lastFire = k;
-    if (!a.days.length){ a.on = false; save(); }
-    fireAlarm(a);
-    renderAlarms();
-  });
 }
 
 /* ===================== СОН: ТАЙМЕР И АВТОРЕЖИМ ===================== */
@@ -788,22 +553,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ===================== ЧАСЫ И ОБЩИЙ ТИК ===================== */
-let lastMin = -1;
+let lastMin = -1, lastSD = '';
 function tick(){
   const n = new Date();
   const min = n.getHours()*60 + n.getMinutes();
   if (min !== lastMin){
     lastMin = min;
+    { const sd = streakDay(); if (sd !== lastSD) { lastSD = sd; renderPet(); } }
     const h = n.getHours();
     $('#clock').textContent = pad(h)+':'+pad(n.getMinutes());
     $('#greet').textContent = h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
     $('#dateLine').textContent = n.toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'});
-    $('#nextAlarm').textContent = nextAlarmText();
-    if (!drag && document.querySelector('#s-day').classList.contains('active')) renderDay();
   }
   tickSleep();
-  checkAlarms();
-  if (S.sleepNow && document.querySelector('#s-sleep').classList.contains('active')) renderSleep();
+  if (S.sleepNow && ['sleep','home'].includes(currentTab)) renderSleep();
 }
 
 /* ===================== ВВОД И ДЕЙСТВИЯ ===================== */
@@ -811,7 +574,7 @@ function addTask(){
   const inp = $('#taskInput');
   const text = inp.value.trim();
   if (!text) return;
-  S.tasks.push({id:uid(), text, done:false, prio:newPrio, date:dayKey()});
+  S.tasks.push({id:uid(), text, done:false, prio:newPrio, date:dayKey()}); markActive();
   inp.value = ''; save(); renderTasks();
 }
 $('#taskInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
@@ -819,58 +582,28 @@ $('#taskAdd').onclick = addTask;
 $('#taskList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const t = S.tasks.find(x => x.id === b.dataset.id); if (!t) return;
-  if (b.dataset.act === 'toggle') t.done = !t.done;
+  if (b.dataset.act === 'toggle') { t.done = !t.done; if (t.done) markActive(); }
   if (b.dataset.act === 'prio') t.prio = t.prio % 3 + 1;
   if (b.dataset.act === 'del') S.tasks = S.tasks.filter(x => x.id !== t.id);
   save(); renderTasks();
 });
 
-$('#evAdd').onclick = () => {
-  const title = $('#evTitle').value.trim();
-  if (!title) return;
-  const [hh, mm] = $('#evStart').value.split(':').map(Number);
-  const data = {title, start:hh*60+mm, dur:+$('#evDur').value, color:CATS[newCat]};
-  if (editId) {
-    const ev = S.events.find(x => x.id === editId);
-    if (ev) Object.assign(ev, data);
-    editId = null;
-    $('#evAdd').textContent = 'Добавить';
-  } else {
-    S.events.push({id:uid(), date:dayKey(), ...data});
-  }
-  $('#evTitle').value = ''; save(); renderDay();
-};
-$('#tl').addEventListener('click', e => {
-  const b = e.target.closest('.ev-more');
-  if (b) openEventMenu(b.dataset.more);
-});
 
 $('#calPrev').onclick = () => { cal.m--; if (cal.m < 0){ cal.m = 11; cal.y--; } renderCal(); };
 $('#calNext').onclick = () => { cal.m++; if (cal.m > 11){ cal.m = 0; cal.y++; } renderCal(); };
 
-$('#sTrack').addEventListener('click', e => {
+['#sTrack','#homeSleep'].forEach(sel => $(sel).addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
-  if (act === 'fall'){ S.sleepNow = {phase:'falling', fallStart:Date.now()}; }
+  if (act === 'fall'){ S.sleepNow = {phase:'falling', fallStart:Date.now()}; markActive(); }
   if (act === 'cancel'){ S.sleepNow = null; }
   if (act === 'wake' && S.sleepNow){
     if (S.sleepNow.phase === 'asleep') addSleep(S.sleepNow.sleepStart, Date.now(), false);
+    markActive();
     S.sleepNow = null;
   }
   save(); renderSleep();
-});
-
-$('#alAdd').onclick = () => {
-  const [h, m] = $('#alTime').value.split(':').map(Number);
-  S.alarms.push({id:uid(), h, m, days:[...alDays].sort(), label:$('#alLabel').value.trim(), on:true});
-  $('#alLabel').value = ''; alDays = []; save(); renderAlarms();
-};
-$('#alList').addEventListener('click', e => {
-  const b = e.target.closest('[data-act]'); if (!b) return;
-  if (b.dataset.act === 'aton'){ const a = S.alarms.find(x => x.id === b.dataset.id); if (a) a.on = !a.on; }
-  if (b.dataset.act === 'adel') S.alarms = S.alarms.filter(x => x.id !== b.dataset.id);
-  save(); renderAlarms();
-});
+}));
 
 document.getElementById('nav').addEventListener('click', e => {
   const b = e.target.closest('button[data-tab]'); if (b) show(b.dataset.tab);
@@ -891,498 +624,200 @@ document.getElementById('nav').addEventListener('click', e => {
     const fast = Date.now() - t.at < 600;
     t = null;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5 || !fast) return;
-    const i = TABS.indexOf(curTab());
-    const next = dx < 0 ? i + 1 : i - 1;
-    if (next >= 0 && next < TABS.length) show(TABS[next]);
+    const i = TABS.indexOf(curTab()); if (i < 0) return;
+    // по кругу: после последнего окна снова первое, и наоборот
+    const next = (i + (dx < 0 ? 1 : -1) + TABS.length) % TABS.length;
+    show(TABS[next], dx < 0 ? 'from-right' : 'from-left');
   }, {passive: true});
 })();
 
+/* ===================== СЕРИИ И ПИТОМЕЦ ===================== */
+const STAGES=[[0,'Пустота'],[2,'Искорка'],[7,'Звёздочка'],[12,'Звезда'],[22,'Красный гигант'],[42,'Сверхновая'],[82,'Чёрная дыра'],[102,'Галактика']];
+const GIFTS=[[10,'smile','Улыбка'],[20,'blush','Румянец'],[25,'glasses','Очки'],[30,'crown','Корона'],[35,'moon','Спутник'],[40,'wink','Подмигивание'],[50,'hat','Колпак'],[60,'bow','Бабочка'],[70,'sparkle','Искры'],[80,'halo','Нимб'],[90,'wings','Крылья']];
+const HEAD=['crown','hat','halo']; // на голове можно носить что-то одно
+const SKINS=[[20,'azure','Лазурь','#60a5fa'],[40,'mint','Мята','#4ade80'],[60,'rose','Роза','#f472b6'],[80,'lilac','Сирень','#c084fc'],[100,'ice','Лёд','#a5f3fc'],[120,'rainbow','Радуга','#ffffff']];
+let cosOpen=false; // раскрыт ли список косметики
+function showToast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(showToast.t);showToast.t=setTimeout(()=>e.style.display='none',3500);}
+function markActive(){S.active=S.active||{};const k=streakDay();if(!S.active[k]){S.active[k]=1;save();renderPet();}}
+/*SD_START*/
+const FREEZES=2, DAY_SHIFT=(5*60+21)*60000; // день для серии обновляется в 5:21, заморозок 2 в месяц
+function streakDay(d){return dayKey(new Date((d||new Date()).getTime()-DAY_SHIFT));}
+function streak(){
+  const A=S.active||{},ks=Object.keys(A).sort(),sd=streakDay(),used={};
+  const nx=(k,n)=>{const t=new Date(k+'T00:00:00');t.setDate(t.getDate()+n);return dayKey(t);};
+  const cover=(f,t)=>{const need={};for(let k=f;k<=t;k=nx(k,1)){const m=k.slice(0,7);need[m]=(need[m]||0)+1;}
+    for(const m in need)if((used[m]||0)+need[m]>FREEZES)return false;
+    for(const m in need)used[m]=(used[m]||0)+need[m];return true;};
+  let best=0,run=0,prev=null;
+  ks.forEach(k=>{
+    if(prev===null)run=1;
+    else{const f=nx(prev,1),t=nx(k,-1);run=(f>t||cover(f,t))?run+1:1;}
+    best=Math.max(best,run);prev=k;
+  });
+  let cur=0;
+  if(ks.length){const last=ks[ks.length-1];
+    if(last===sd)cur=run;
+    else{const f=nx(last,1),t=nx(sd,-1);if(f>t||cover(f,t))cur=run;}}
+  return {cur,best,today:!!A[sd],left:Math.max(0,FREEZES-(used[sd.slice(0,7)]||0))};
+}
+/*SD_END*/
+/*PL_START*/
+// Галактика: 16 планет по 4 на каждый шаг (каждые 20, 40, 60, 80 дней), отсчёт от начала чёрной дыры (82-й день)
+const PLANET_AT=(()=>{const a=[];let d=82;[20,40,60,80].forEach(st=>{for(let k=0;k<4;k++){d+=st;a.push(d);}});return a;})();
+const planets=cur=>PLANET_AT.filter(d=>cur>=d).length;
+const PL_COL=['#60a5fa','#f472b6','#fbbf24','#34d399','#a78bfa','#fb923c','#22d3ee','#f87171','#a3e635','#e879f9','#38bdf8','#facc15','#2dd4bf','#c084fc','#fda4af','#86efac'];
+function planetsSvg(n){
+  let s='';
+  for(let t=0;t<4&&t*4<n;t++){
+    const R=[34,47,60,73][t],rv=t%2;
+    s+=`<circle cx="80" cy="80" r="${R}" fill="none" stroke="#c4b5fd" stroke-opacity=".14"/><g><animateTransform attributeName="transform" type="rotate" from="${rv?360:0} 80 80" to="${rv?0:360} 80 80" dur="${[36,52,72,96][t]}s" repeatCount="indefinite"/>`;
+    for(let k=0;k<4&&t*4+k<n;k++){
+      const q=t*4+k,a=(k*90+t*37+15)*Math.PI/180;
+      s+=`<circle cx="${(80+R*Math.cos(a)).toFixed(1)}" cy="${(80+R*Math.sin(a)).toFixed(1)}" r="${(2.6+(q*7%5)*.4).toFixed(1)}" fill="${PL_COL[q]}" stroke="rgba(255,255,255,.4)" stroke-width=".6"/>`;
+    }
+    s+='</g>';
+  }
+  return s;
+}
+/*PL_END*/
+function petSvg(i,best,np,mood){
+  const W=S.wear||{},has=id=>W[id]&&best>=GIFTS.find(g=>g[1]===id)[0];
+  const sk=SKINS.find(k=>k[1]===S.skin&&best>=k[0]),rb=!!sk&&sk[1]==='rainbow',K=sk&&!rb?sk[3]:null;
+  const RB='#f87171;#fbbf24;#4ade80;#60a5fa;#a78bfa;#f472b6;#f87171';
+  const an=a=>rb&&i>=1?`<animate attributeName="${a}" values="${RB}" dur="14s" repeatCount="indefinite"/>`:'';
+  const star=i===2||i===3,r=[12,4,9,18,28,24,22,20][i];
+  let C=['#9ca3af','#fde68a','#fcd34d','#fbbf24','#f97316','#f5d0fe','#08080f','#08080f'][i],G=i>=6?'#8b5cf6':C;
+  if(K&&i>=1){G=K;if(i<6)C=K;}
+  const Rb=i===0?14:i===1?15:star?r*1.55:r,ec=i>=6?'#e5e7eb':'#1a1a2e';
+  const a0=Rb*1.35+3,a1=a0+Math.max(Rb*.45,7);
+  const ln=(a,L,w)=>a.map(d=>`<path d="M80 ${80-L}V${80+L}" stroke="${C}" stroke-width="${w}" stroke-linecap="round" transform="rotate(${d} 80 80)"/>`).join('');
+  const pts=(R,q)=>Array.from({length:10},(_,k)=>{const a=(-90+k*36)*Math.PI/180,x=k%2?R*q:R;return (80+x*Math.cos(a)).toFixed(1)+','+(80+x*Math.sin(a)).toFixed(1);}).join(' ');
+  const tw=(R,off,col)=>[0,1,2,3].map(k=>{const a=(k*90+off)*Math.PI/180,x=80+R*Math.cos(a),y=80+R*Math.sin(a),q=Math.max(2.2,Rb*.13);return `<path d="M${(x-q).toFixed(1)} ${y.toFixed(1)}H${(x+q).toFixed(1)}M${x.toFixed(1)} ${(y-q).toFixed(1)}V${(y+q).toFixed(1)}" stroke="${col}" stroke-width="1.4" stroke-linecap="round"><animate attributeName="opacity" values=".15;1;.15" dur="2.4s" begin="-${(k*.6).toFixed(1)}s" repeatCount="indefinite"/></path>`;}).join('');
+  let s=`<svg viewBox="${i<=1?'40 40 80 80':i===2?'30 30 100 100':'0 0 160 160'}"><defs><radialGradient id="pg${i}"><stop offset="0" stop-color="${G}" stop-opacity=".85">${an('stop-color')}</stop><stop offset="1" stop-color="${G}" stop-opacity="0">${an('stop-color')}</stop></radialGradient><radialGradient id="mgb"><stop offset="0" stop-color="#60a5fa" stop-opacity="${mood===1?.55:.38}"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></radialGradient></defs>`;
+  if(i>=2&&has('wings'))[-1,1].forEach(d=>{const cx=80+d*r*(star?1.75:1.3),cy=80-r*.15,A=-d*30;s+=`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${r*.75}" ry="${r*.3}" fill="#e0e7ff" opacity=".9" transform="rotate(${A} ${cx.toFixed(1)} ${cy.toFixed(1)})"><animateTransform attributeName="transform" type="rotate" values="${A} ${cx.toFixed(1)} ${cy.toFixed(1)};${A*.55} ${cx.toFixed(1)} ${cy.toFixed(1)};${A} ${cx.toFixed(1)} ${cy.toFixed(1)}" dur="2.6s" repeatCount="indefinite"/></ellipse>`;});
+  if(has('moon'))s+=`<circle cx="${80+r*1.8+14}" cy="${80-r-6}" r="5" fill="#cbd5e1"/>`;
+  // настроение: грустно — голубое свечение, весело — лучики и искры
+  if(mood&&mood<=2)s+=`<circle cx="80" cy="80" r="${Math.min(76,Rb*3+6).toFixed(1)}" fill="url(#mgb)"><animate attributeName="opacity" values=".6;1;.6" dur="5s" repeatCount="indefinite"/></circle>`;
+  if(mood>=4){const n=mood===5?12:8;s+=`<g stroke="#fde68a" stroke-width="${Math.max(1.6,Rb*.07).toFixed(1)}" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="45s" repeatCount="indefinite"/><animate attributeName="opacity" values=".5;.95;.5" dur="3.2s" repeatCount="indefinite"/>${Array.from({length:n},(_,k)=>{const L=(k%2&&mood===5)?a1-(a1-a0)*.45:a1;return `<path d="M80 ${(80-a0).toFixed(1)}V${(80-L).toFixed(1)}" transform="rotate(${k*360/n} 80 80)"/>`;}).join('')}</g>`;if(mood===5)s+=tw(a1+7,22,'#fef3c7');}
+  // дыхание и покачивание тела: у каждой стадии свой ритм [размах, период, наклон°, период наклона]
+  const AN=[[1.06,6,0,0],[1.1,2.4,0,0],[1.05,3.2,6,3.2],[1.06,3.6,3,4.4],[1.05,7,0,0],[1.07,2.8,0,0],[1.03,5,0,0],[1.03,5,0,0]][i],wob=AN[2],spl='calcMode="spline" keyTimes="0;.5;1" keySplines=".4 0 .6 1;.4 0 .6 1"';
+  s+=`<g transform="translate(80 80)"><g><animateTransform attributeName="transform" type="scale" values="1;${AN[0]};1" ${spl} dur="${AN[1]}s" repeatCount="indefinite"/>${wob?`<g><animateTransform attributeName="transform" type="rotate" values="${-wob} 0 0;${wob} 0 0;${-wob} 0 0" ${spl} dur="${AN[3]}s" repeatCount="indefinite"/>`:''}<g transform="translate(-80 -80)">`;
+  if(i===0){
+    s+=`<circle cx="80" cy="80" r="26" fill="url(#pg0)" opacity=".8"/><g fill="${C}"><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="48s" repeatCount="indefinite"/><circle cx="62" cy="68" r="1.4" opacity=".55"/><circle cx="99" cy="72" r="1.1" opacity=".45"/><circle cx="96" cy="96" r="1.6" opacity=".5"/><circle cx="66" cy="94" r="1" opacity=".4"/><circle cx="80" cy="58" r="1.2" opacity=".45"/></g><g stroke="${C}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".85"><path d="M72 81q3.5 3.5 7 0"/><path d="M81 81q3.5 3.5 7 0"/></g><g fill="${C}" font-family="sans-serif" font-size="7"><text x="93" y="70" opacity=".7">z<animate attributeName="opacity" values=".2;.8;.2" dur="3s" repeatCount="indefinite"/></text><text x="100" y="62" font-size="5" opacity=".5">z<animate attributeName="opacity" values=".1;.6;.1" dur="3s" begin="-1.2s" repeatCount="indefinite"/></text></g>`;
+  }else{
+    s+=`<circle cx="80" cy="80" r="${Math.max(r*2.6,i===1?24:0)}" fill="url(#pg${i})"/>`;
+    if(i===7)s+=planetsSvg(np||0);
+    if(i===5)s+=`<g><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="60s" repeatCount="indefinite"/><animate attributeName="opacity" values=".65;1;.65" dur="2.8s" repeatCount="indefinite"/>${ln([0,45,90,135],46,3)}</g>`;
+    if(i>=6)s+=`<ellipse cx="80" cy="80" rx="${r*2.2}" ry="${r*.55}" fill="none" stroke="${K||'#c4b5fd'}" stroke-width="4" opacity=".85" transform="rotate(-15 80 80)">${an('stroke')}</ellipse><ellipse cx="80" cy="80" rx="${r*2.2}" ry="${r*.55}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="5 31" transform="rotate(-15 80 80)"><animate attributeName="stroke-dashoffset" from="0" to="-36" dur="2.2s" repeatCount="indefinite"/></ellipse>`;
+    if(i===1)s+=`<g><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="26s" repeatCount="indefinite"/><path d="M80 65Q83 77 95 80Q83 83 80 95Q77 83 65 80Q77 77 80 65Z" fill="${C}">${an('fill')}<animate attributeName="opacity" values=".75;1;.75" dur="2.4s" repeatCount="indefinite"/></path></g><circle cx="80" cy="80" r="3.4" fill="#fffbe6"/>`;
+    else if(star)s+=`<polygon points="${pts(r*1.4,.5)}" fill="${C}" stroke="${C}" stroke-width="${(r*.3).toFixed(1)}" stroke-linejoin="round">${an('fill')}${an('stroke')}</polygon>`;
+    else s+=`<circle cx="80" cy="80" r="${r}" fill="${i>=6?'#000':C}"${i>=6?' stroke="#c4b5fd" stroke-width="2"':''}>${i<6?an('fill'):''}</circle>`;
+    if(i>=2){
+      const e=Math.max(2,r*.09),dx=r*.36,y=80-r*.05,bl=`<animate attributeName="ry" values="${e};${e};${(e*.15).toFixed(2)};${e}" keyTimes="0;.93;.96;1" dur="${(4+i*.35).toFixed(2)}s" repeatCount="indefinite"/>`;
+      s+=`<g fill="${ec}"><ellipse cx="${80-dx}" cy="${y}" rx="${e}" ry="${e}">${bl}</ellipse>${has('wink')?`<path d="M${80+dx-e*1.5} ${y+e*.4}Q${80+dx} ${y-e*1.8} ${80+dx+e*1.5} ${y+e*.4}" fill="none" stroke="${ec}" stroke-width="${Math.max(1.2,e*.6)}" stroke-linecap="round"/>`:`<ellipse cx="${80+dx}" cy="${y}" rx="${e}" ry="${e}">${bl}</ellipse>`}</g>`;
+      if(has('blush'))s+=`<g fill="#fb7185" opacity=".6"><ellipse cx="${80-r*.62}" cy="${80+r*.2}" rx="${r*.17}" ry="${r*.1}"/><ellipse cx="${80+r*.62}" cy="${80+r*.2}" rx="${r*.17}" ry="${r*.1}"/></g>`;
+      if(has('smile'))s+=`<path d="M${80-r*.28} ${80+r*.2}Q80 ${80+r*.52} ${80+r*.28} ${80+r*.2}" fill="none" stroke="${ec}" stroke-width="${Math.max(1.2,r*.07)}" stroke-linecap="round"/>`;
+      if(has('glasses')){const q=r*.3;s+=`<g stroke="${i>=6?'#4b5563':'#0b0b14'}" stroke-width="1.9" fill="rgba(5,5,12,.92)"><circle cx="${80-dx}" cy="${y}" r="${q}"/><circle cx="${80+dx}" cy="${y}" r="${q}"/><path d="M${80-dx+q} ${y}H${80+dx-q}"/></g>`;}
+      const hd=HEAD.find(has),hb=star?1.2:.78;
+      if(hd==='hat'){const hy=80-r*hb;s+=`<g transform="rotate(-12 80 ${hy})"><polygon fill="#f472b6" points="${80-r*.38},${hy} ${80+r*.38},${hy} 80,${hy-r*.95}"/><path d="M${80-r*.2} ${hy-r*.4}L${80+r*.2} ${hy-r*.4}" stroke="#fde68a" stroke-width="${Math.max(1.2,r*.07)}"/><circle cx="80" cy="${hy-r*.95}" r="${Math.max(1.5,r*.1)}" fill="#fde68a"/></g>`;}
+      if(hd==='crown'){const x=80-r*.5,hy=80-r*hb;s+=`<polygon fill="#fbbf24" points="${x},${hy} ${x},${hy-r*.4} ${x+r*.25},${hy-r*.2} 80,${hy-r*.5} ${80+r*.25},${hy-r*.2} ${80+r*.5},${hy-r*.4} ${80+r*.5},${hy}"/>`;}
+      if(hd==='halo'){const hy=80-r*(hb+.55);s+=`<ellipse cx="80" cy="${hy}" rx="${r*.55}" ry="${Math.max(1.6,r*.14)}" fill="none" stroke="#fde68a" stroke-opacity=".3" stroke-width="${Math.max(4,r*.3)}"/><ellipse cx="80" cy="${hy}" rx="${r*.55}" ry="${Math.max(1.6,r*.14)}" fill="none" stroke="#fde68a" stroke-width="${Math.max(1.8,r*.13)}"/>`;}
+      if(has('bow')){const by=80+r*(star?.95:.78),w=r*.42,h=r*.2;s+=`<g fill="#ef4444"><polygon points="${80-w},${by-h} ${80-w},${by+h} 80,${by}"/><polygon points="${80+w},${by-h} ${80+w},${by+h} 80,${by}"/><circle cx="80" cy="${by}" r="${Math.max(1.4,r*.1)}" fill="#b91c1c"/></g>`;}
+    }
+  }
+  s+=wob?'</g></g></g></g>':'</g></g></g>';
+  if(has('sparkle'))s+=tw(Rb*1.9+6,45,'#fef3c7');
+  if(S.anim===false)s=s.replace(/<animate(?:Transform)?\b[^>]*\/>/g,'');
+  return s+'</svg>';
+}
+function renderPet(){
+  const el=$('#petCard'); if(!el)return;
+  const {cur,best,today,left}=streak(); let i=0; STAGES.forEach((s,j)=>{if(cur>=s[0])i=j;});
+  S.wear=S.wear||{};S.seen=S.seen||[];
+  const fresh=GIFTS.filter(g=>best>=g[0]&&!S.seen.includes(g[1])),freshK=SKINS.filter(k=>best>=k[0]&&!S.seen.includes(k[1]));
+  if(fresh.length||freshK.length){
+    fresh.forEach(g=>{S.seen.push(g[1]);if(!(HEAD.includes(g[1])&&HEAD.some(h=>S.wear[h])))S.wear[g[1]]=true;});
+    freshK.forEach(k=>{S.seen.push(k[1]);S.skin=k[1];});
+    save();showToast([fresh.length?'Новый предмет: '+fresh.map(g=>g[2]).join(', '):'',freshK.length?'Новый окрас: '+freshK.map(k=>k[2]).join(', '):''].filter(Boolean).join(' · '));
+  }
+  const a=STAGES[i],n=STAGES[i+1],pc=i===7?planets(cur):0,nd=i===7?PLANET_AT[pc]:(n&&n[0]),from=i===7&&pc?PLANET_AT[pc-1]:a[0],pct=nd?Math.round((cur-from)/(nd-from)*100):100;
+  const hint=!today?(cur?'Сегодня ещё не засчитан, день обновляется в 5:21':'Сделай что-нибудь сегодня, чтобы начать серию'):i===7?(nd?`Следующая планета через ${nd-cur} дн.`:'Все 16 планет собраны'):n?`До «${n[1]}»: ${n[0]-cur} дн.`:'Высшая стадия';
+  el.innerHTML=`${petHead()}<div class="row" style="flex-wrap:nowrap;gap:14px"><div class="grow"><div style="font-size:20px">${i===7?a[1]+' · планет '+pc+'/16':a[1]}</div><div class="muted">Серия: ${cur} дн. · рекорд ${best} · ❄ ${left}/2</div><div class="bar" style="margin:10px 0 6px"><i style="width:${pct}%"></i></div><div class="muted" style="font-size:12px">${hint}</div></div></div><div class="row" style="margin-top:12px"><button class="chip ${cosOpen?'on':''}" data-cos="1">✨ Косметика ${GIFTS.filter(g=>best>=g[0]).length+SKINS.filter(k=>best>=k[0]).length}/${GIFTS.length+SKINS.length} ${cosOpen?'▴':'▾'}</button></div>${cosOpen?`<div class="muted" style="font-size:12px;margin:10px 0 6px">Предметы</div><div class="row">${GIFTS.map(g=>best>=g[0]?`<button class="chip ${S.wear[g[1]]?'on':''}" data-w="${g[1]}">${g[2]}</button>`:`<span class="chip lock">🔒 ${g[2]} · ${g[0]} дн.</span>`).join('')}</div><div class="muted" style="font-size:12px;margin:10px 0 6px">Окрас</div><div class="row"><button class="chip ${S.skin?'':'on'}" data-s="">Стандарт</button>${SKINS.map(k=>best>=k[0]?`<button class="chip ${S.skin===k[1]?'on':''}" data-s="${k[1]}"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:${k[1]==='rainbow'?'conic-gradient(#f87171,#fbbf24,#4ade80,#60a5fa,#a78bfa,#f472b6,#f87171)':k[3]}"></i>${k[2]}</button>`:`<span class="chip lock">🔒 ${k[2]} · ${k[0]} дн.</span>`).join('')}</div>`:''}`;
+  starSet(petSvg(i,best,pc,(S.moods||{})[dayKey()]));
+}
+$('#petCard').addEventListener('click',e=>{if(e.target.closest('[data-cos]')){cosOpen=!cosOpen;renderPet();return;}const sb=e.target.closest('[data-s]');if(sb){S.skin=sb.dataset.s||null;save();renderPet();return;}const b=e.target.closest('[data-w]');if(b){const k=b.dataset.w,on=!S.wear[k];if(on&&HEAD.includes(k))HEAD.forEach(h=>S.wear[h]=false);S.wear[k]=on;save();renderPet();}});
+
+/* ===== имя питомца ===== */
+let petEditing=false;
+function petHead(){
+  const n=esc(S.petName||'Стар');
+  return petEditing
+    ?`<div class="row" style="flex-wrap:nowrap;margin-bottom:10px"><input id="petNameIn" value="${n}" maxlength="14" placeholder="Имя" style="flex:1;min-width:0"><button class="btn" data-pn="save">Ок</button></div>`
+    :`<div class="h" style="text-transform:none;letter-spacing:0;font-size:15px;color:var(--text)">${n} <button data-pn="edit" aria-label="Переименовать" style="color:var(--muted);padding:2px 6px">✎</button></div>`;
+}
+function petNameSave(){const v=($('#petNameIn')||{}).value;S.petName=(v||'').trim().slice(0,14)||'Стар';petEditing=false;save();renderPet();}
+$('#petCard').addEventListener('click',e=>{const b=e.target.closest('[data-pn]');if(!b)return;if(b.dataset.pn==='edit'){petEditing=true;renderPet();const i=$('#petNameIn');if(i){i.focus();i.select();}}else petNameSave();});
+$('#petCard').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='petNameIn')petNameSave();});
+
+/* ===== Стар плавает по главному экрану ===== */
+function starSet(svg){const el=$('#starFly');if(el)el.innerHTML=S.svg===false?'':svg;}
+function starMove(first){
+  const el=$('#starFly');if(!el)return;
+  const W=innerWidth,H=innerHeight,Z=64,top=110,bot=Math.max(top+10,H-120-Z);
+  const x=8+Math.random()*Math.max(10,W-Z-16),y=top+Math.random()*(bot-top);
+  if(S.anim===false){clearTimeout(starMove.t);if(!el.style.transform)el.style.transform=`translate(${x}px,${y}px)`;return;} // без анимаций Стар стоит на месте
+  if(first){el.style.transition='none';el.style.transform=`translate(${x}px,${y}px)`;void el.offsetWidth;el.style.transition='';}
+  else el.style.transform=`translate(${x}px,${y}px)`;
+  clearTimeout(starMove.t);starMove.t=setTimeout(starMove,5500+Math.random()*3500);
+}
+
+/* ===================== НАСТРОЙКИ ===================== */
+function applyOrbs(){document.body.classList.toggle('om',S.orbMove===false);document.body.classList.toggle('op',S.orbPulse===false);}
+function applyGfx(){document.body.classList.toggle('noanim',S.anim===false);document.body.classList.toggle('nosvg',S.svg===false);}
+function renderSettings(){
+  applyOrbs();applyGfx();
+  $('#gfxRow').innerHTML=[['anim','Анимации',S.anim!==false],['svg','SVG-графика Стара',S.svg!==false]].map(([k,l,on])=>`<button class="chip ${on?'on':''}" data-g="${k}">${l}: ${on?'вкл':'выкл'}</button>`).join('');
+  $('#orbRow').innerHTML=[['move','Движение',S.orbMove!==false],['pulse','Мерцание',S.orbPulse!==false]].map(([k,l,on])=>`<button class="chip ${on?'on':''}" data-o="${k}">${l}: ${on?'вкл':'выкл'}</button>`).join('');
+  $('#themeRow').innerHTML=[['auto','Авто'],['dark','Тёмная'],['light','Светлая']].map(([k,l])=>`<button class="chip ${S.theme===k?'on':''}" data-t="${k}">${l}</button>`).join('');
+  $('#swatches').innerHTML=ACC.map(a=>`<button class="swatch ${S.accent===a.k?'on':''}" style="background:hsl(${a.h} ${a.s}% 60%)" data-a="${a.k}"></button>`).join('');
+}
+$('#s-settings').addEventListener('click',e=>{
+  const t=e.target.closest('[data-t]'),a=e.target.closest('[data-a]'),o=e.target.closest('[data-o]'),g=e.target.closest('[data-g]');
+  if(g){const k=g.dataset.g;S[k]=S[k]===false;save();applyGfx();renderSettings();renderPet();if(S.anim!==false)starMove();}
+  if(o){const k=o.dataset.o==='move'?'orbMove':'orbPulse';S[k]=S[k]===false;save();renderSettings();}
+  if(t){S.theme=t.dataset.t;applyAccent();save();renderSettings();}
+  if(a){setAccent(a.dataset.a);renderSettings();}
+});
+$('#gear').onclick=()=>show(currentTab==='settings'?prevTab:'settings');
+
 /* ===================== СТАРТ ===================== */
-RENDER.home = renderHome;
+RENDER.home = () => { renderHome(); renderPet(); };
+RENDER.settings = renderSettings;
 RENDER.tasks = renderTasks;
-RENDER.day = renderDay;
 RENDER.cal = renderCal;
-RENDER.sleep = () => { renderSleep(); renderAlarms(); };
+RENDER.sleep = renderSleep;
 
 function renderAll(){
   applyAccent(S.accent);
-  renderTasks(); renderDay(); renderCal(); renderSleep(); renderAlarms();
-}
-if (window.AndroidPlaner) {
-  try {
-    const fired = JSON.parse(AndroidPlaner.takeFired() || '[]');
-    if (fired.length) { S.alarms.forEach(a => { if (fired.includes(a.id)) a.on = false; }); save(); }
-  } catch (e) {}
+  renderHome(); renderPet(); renderSettings(); renderTasks();  renderCal(); renderSleep(); 
 }
 renderAll();
-syncNative();
 tick();
 setInterval(tick, 1000);
+starMove(true);
 
 </script>
 </body>
 </html>
-### FILE: app/src/main/java/com/planer/day/AlarmReceiver.kt
-package com.planer.day
-
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-
-class AlarmReceiver : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, intent: Intent) {
-        val key = intent.getStringExtra("key") ?: return
-        val label = intent.getStringExtra("label").orEmpty()
-
-        // Уведомление с полноэкранным показом (работает, если разрешены уведомления)
-        Notifier.showAlarm(ctx, key, label)
-
-        // Дополнительно открываем экран задачи напрямую: будильник работает даже без уведомлений
-        try {
-            ctx.startActivity(
-                Intent(ctx, ChallengeActivity::class.java)
-                    .putExtra("key", key)
-                    .putExtra("label", label)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (e: Exception) {
-            // если система не разрешила, останется уведомление
-        }
-
-        AlarmStore.afterFire(ctx, key)
-    }
-}
-### FILE: app/src/main/java/com/planer/day/AlarmStore.kt
-package com.planer.day
-
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import org.json.JSONArray
-import org.json.JSONObject
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneId
-
-/**
- * Хранит будильники и напоминания, присланные страницей, и ставит их в системе.
- * Будильники — через setAlarmClock: работают при погашенном экране и в режиме Doze,
- * отдельного разрешения не требуют.
- */
-object AlarmStore {
-    private const val PREFS = "planer_native"
-    private const val K_ALARMS = "alarms"
-    private const val K_EVENTS = "events"
-    private const val K_IDS = "scheduled"
-    private const val K_FIRED = "fired"
-
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private fun am(ctx: Context) = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-    /** Полностью пересоздаёт все будильники и напоминания по данным страницы. */
-    fun sync(ctx: Context, json: String): String {
-        val root = JSONObject(json)
-        val alarms = root.optJSONArray("alarms") ?: JSONArray()
-        val events = root.optJSONArray("events") ?: JSONArray()
-
-        cancelAll(ctx)
-        prefs(ctx).edit()
-            .putString(K_ALARMS, alarms.toString())
-            .putString(K_EVENTS, events.toString())
-            .apply()
-
-        val keys = mutableSetOf<String>()
-        for (i in 0 until alarms.length()) {
-            val a = alarms.getJSONObject(i)
-            if (!a.optBoolean("on", true)) continue
-            if (scheduleAlarm(ctx, a)) keys.add("a" + a.getString("id"))
-        }
-        for (i in 0 until events.length()) {
-            val e = events.getJSONObject(i)
-            val at = eventTime(e) ?: continue
-            if (at <= System.currentTimeMillis()) continue
-            scheduleReminder(ctx, e.getString("id"), e.getString("title"), at)
-            keys.add("e" + e.getString("id"))
-        }
-        prefs(ctx).edit().putStringSet(K_IDS, keys).apply()
-        return "будильников ${alarms.length()}, напоминаний ${events.length()}"
-    }
-
-    /** Вызывается после перезагрузки телефона: ставим всё заново из сохранённого. */
-    fun rescheduleStored(ctx: Context) {
-        val p = prefs(ctx)
-        val json = JSONObject()
-            .put("alarms", JSONArray(p.getString(K_ALARMS, "[]")))
-            .put("events", JSONArray(p.getString(K_EVENTS, "[]")))
-        sync(ctx, json.toString())
-    }
-
-    /** После срабатывания: повторяющийся будильник ставим на следующий раз, разовый помечаем. */
-    fun afterFire(ctx: Context, key: String) {
-        val id = key.removePrefix("a")
-        val arr = JSONArray(prefs(ctx).getString(K_ALARMS, "[]"))
-        for (i in 0 until arr.length()) {
-            val a = arr.getJSONObject(i)
-            if (a.getString("id") != id) continue
-            val days = a.optJSONArray("days")
-            if (days == null || days.length() == 0) {
-                val fired = (prefs(ctx).getStringSet(K_FIRED, emptySet()) ?: emptySet()).toMutableSet()
-                fired.add(id)
-                prefs(ctx).edit().putStringSet(K_FIRED, fired).apply()
-            } else {
-                scheduleAlarm(ctx, a)
-            }
-            return
-        }
-    }
-
-    /** Страница забирает список сработавших разовых будильников, чтобы выключить их у себя. */
-    fun takeFired(ctx: Context): String {
-        val set = prefs(ctx).getStringSet(K_FIRED, emptySet()) ?: emptySet()
-        prefs(ctx).edit().remove(K_FIRED).apply()
-        return JSONArray(set.toList()).toString()
-    }
-
-    private fun cancelAll(ctx: Context) {
-        val keys = prefs(ctx).getStringSet(K_IDS, emptySet()) ?: emptySet()
-        for (k in keys) {
-            val pi = buildPi(ctx, k, null, null, PendingIntent.FLAG_NO_CREATE) ?: continue
-            am(ctx).cancel(pi)
-            pi.cancel()
-        }
-    }
-
-    private fun buildPi(ctx: Context, key: String, title: String?, label: String?, flags: Int): PendingIntent? {
-        val cls = if (key.startsWith("a")) AlarmReceiver::class.java else ReminderReceiver::class.java
-        val intent = Intent(ctx, cls)
-            .setData(Uri.parse("planer://$key"))
-            .putExtra("key", key)
-        title?.let { intent.putExtra("title", it) }
-        label?.let { intent.putExtra("label", it) }
-        return PendingIntent.getBroadcast(ctx, key.hashCode(), intent, flags or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    private fun scheduleAlarm(ctx: Context, a: JSONObject): Boolean {
-        val at = nextTime(a.getInt("h"), a.getInt("m"), a.optJSONArray("days")) ?: return false
-        val key = "a" + a.getString("id")
-        val pi = buildPi(ctx, key, null, a.optString("label", ""), PendingIntent.FLAG_UPDATE_CURRENT) ?: return false
-        val showIntent = PendingIntent.getActivity(
-            ctx, 0, Intent(ctx, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        try {
-            am(ctx).setAlarmClock(AlarmManager.AlarmClockInfo(at, showIntent), pi)
-        } catch (e: SecurityException) {
-            am(ctx).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-        }
-        return true
-    }
-
-    private fun scheduleReminder(ctx: Context, id: String, title: String, at: Long) {
-        val pi = buildPi(ctx, "e$id", title, null, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
-        am(ctx).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-    }
-
-    /** Ближайшее будущее время h:m с учётом дней недели (0 = воскресенье, как в JS). */
-    private fun nextTime(h: Int, m: Int, days: JSONArray?): Long? {
-        val now = LocalDateTime.now()
-        for (d in 0..7) {
-            val cand = LocalDate.now().plusDays(d.toLong()).atTime(h, m)
-            if (!cand.isAfter(now)) continue
-            val pageDay = cand.dayOfWeek.value % 7
-            if (days != null && days.length() > 0) {
-                var ok = false
-                for (i in 0 until days.length()) {
-                    if (days.getInt(i) == pageDay) ok = true
-                }
-                if (!ok) continue
-            }
-            return cand.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        }
-        return null
-    }
-
-    private fun eventTime(e: JSONObject): Long? = try {
-        LocalDate.parse(e.getString("date"))
-            .atStartOfDay()
-            .plusMinutes(e.getInt("start").toLong())
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-    } catch (ex: Exception) {
-        null
-    }
-}
-### FILE: app/src/main/java/com/planer/day/BootReceiver.kt
-package com.planer.day
-
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-
-class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            AlarmStore.rescheduleStored(ctx)
-        }
-    }
-}
-### FILE: app/src/main/java/com/planer/day/ChallengeActivity.kt
-package com.planer.day
-
-import android.app.Activity
-import android.app.NotificationManager
-import android.graphics.Color
-import android.media.AudioAttributes
-import android.media.AudioManager
-import android.media.MediaPlayer
-import android.media.RingtoneManager
-import android.media.ToneGenerator
-import android.os.Build
-import android.os.Bundle
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.text.InputType
-import android.view.Gravity
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import kotlin.random.Random
-
-/** Экран будильника: три задания подряд, неверный ответ сбрасывает прогресс. */
-class ChallengeActivity : Activity() {
-
-    companion object {
-        private val PHRASES = listOf("Я встаю", "Доброе утро", "Пора вставать", "Сегодня будет хороший день")
-        private const val STEPS = 3
-    }
-
-    private var key = ""
-    private var step = 0
-    private var expected = ""
-    private var player: MediaPlayer? = null
-    private var tones: ToneGenerator? = null
-    private lateinit var stepView: TextView
-    private lateinit var taskView: TextView
-    private lateinit var input: EditText
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        }
-        key = intent.getStringExtra("key") ?: ""
-        val label = intent.getStringExtra("label").orEmpty()
-        setContentView(buildUi(label))
-        newTask()
-        startSound()
-    }
-
-    override fun onBackPressed() {
-        // Выйти без решения задачи нельзя
-    }
-
-    override fun onDestroy() {
-        stopSound()
-        super.onDestroy()
-    }
-
-    private fun buildUi(label: String): LinearLayout {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0f0f1e"))
-            setPadding(dp(28), dp(28), dp(28), dp(28))
-        }
-
-        fun text(size: Float, color: String, pad: Int = 0) = TextView(this).apply {
-            textSize = size
-            setTextColor(Color.parseColor(color))
-            gravity = Gravity.CENTER
-            setPadding(0, pad, 0, pad)
-        }
-
-        val title = text(20f, "#ffffff").apply { this.text = label.ifBlank { "Будильник" } }
-        stepView = text(14f, "#99ffffff", dp(8))
-        taskView = text(24f, "#ffffff", dp(24))
-
-        input = EditText(this).apply {
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.parseColor("#66ffffff"))
-            hint = "Ответ"
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setSingleLine(true)
-            setOnEditorActionListener { _, _, _ ->
-                check()
-                true
-            }
-        }
-
-        val btn = Button(this).apply {
-            text = "Проверить"
-            setOnClickListener { check() }
-        }
-
-        root.addView(title)
-        root.addView(stepView)
-        root.addView(taskView)
-        root.addView(input)
-        root.addView(btn)
-        return root
-    }
-
-    private fun newTask() {
-        input.setText("")
-        if (Random.nextBoolean()) {
-            val a = Random.nextInt(100, 1000)
-            val b = Random.nextInt(100, 1000)
-            expected = (a + b).toString()
-            taskView.text = "Сколько будет $a + $b ?"
-            input.inputType = InputType.TYPE_CLASS_NUMBER
-        } else {
-            expected = PHRASES.random()
-            taskView.text = "Напечатай:\n$expected"
-            input.inputType = InputType.TYPE_CLASS_TEXT
-        }
-        stepView.text = "Шаг ${step + 1} из $STEPS"
-    }
-
-    private fun check() {
-        val answer = input.text.toString().trim()
-        val ok = if (expected.all { it.isDigit() }) {
-            answer == expected
-        } else {
-            answer.equals(expected, ignoreCase = true)
-        }
-        if (!ok) {
-            wrong()
-            return
-        }
-        step++
-        if (step >= STEPS) finishAlarm() else newTask()
-    }
-
-    private fun wrong() {
-        tones?.startTone(ToneGenerator.TONE_PROP_NACK, 800)
-        Toast.makeText(this, "Неверно, начинаем сначала", Toast.LENGTH_SHORT).show()
-        step = 0
-        newTask()
-    }
-
-    private fun finishAlarm() {
-        getSystemService(NotificationManager::class.java).cancel(Notifier.notifId(key))
-        stopSound()
-        finish()
-    }
-
-    private fun startSound() {
-        // Звук будильника играет уведомление (зациклено), здесь только вибрация
-        vibrateLoop()
-    }
-
-    private fun vibrateLoop() {
-        val v = getSystemService(Vibrator::class.java) ?: return
-        val pattern = longArrayOf(0, 900, 600)
-        if (Build.VERSION.SDK_INT >= 26) {
-            v.vibrate(VibrationEffect.createWaveform(pattern, 0))
-        } else {
-            @Suppress("DEPRECATION")
-            v.vibrate(pattern, 0)
-        }
-    }
-
-    private fun stopSound() {
-        try {
-            player?.stop()
-        } catch (e: Exception) {
-        }
-        player?.release()
-        player = null
-        getSystemService(Vibrator::class.java)?.cancel()
-        tones?.release()
-        tones = null
-    }
-
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
-}
-### FILE: app/src/main/java/com/planer/day/KeepAliveService.kt
-package com.planer.day
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
-import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.os.Build
-import android.os.IBinder
-import androidx.core.app.NotificationCompat
-
-/**
- * Держит приложение в статусе «работает» тихим постоянным уведомлением.
- * Из-за этого системные оптимизаторы реже чистят приложение вместе с будильниками.
- */
-class KeepAliveService : Service() {
-
-    companion object {
-        private const val CH_KEEP = "keep_v1"
-        private const val NOTIF_ID = 4242
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        val nm = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(
-                NotificationChannel(CH_KEEP, "Работа в фоне", NotificationManager.IMPORTANCE_MIN)
-            )
-        }
-        val n: Notification = NotificationCompat.Builder(this, CH_KEEP)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Планер дня работает")
-            .setContentText("Будильники и напоминания активны")
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(NOTIF_ID, n)
-        }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
-
-    override fun onBind(intent: Intent?): IBinder? = null
-}
 ### FILE: app/src/main/java/com/planer/day/MainActivity.kt
 package com.planer.day
 
-import android.Manifest
 import android.app.Activity
-import android.app.AlarmManager
-import android.app.NotificationManager
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
-import androidx.core.app.NotificationManagerCompat
 
 class MainActivity : Activity() {
 
@@ -1390,185 +825,19 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Notifier.ensureChannels(this)
-        try {
-            androidx.core.content.ContextCompat.startForegroundService(
-                this, Intent(this, KeepAliveService::class.java)
-            )
-        } catch (e: Exception) {
-        }
-
         web = WebView(this)
         setContentView(web)
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
+        if (Build.VERSION.SDK_INT in 29..32) {
+            web.settings.forceDark = WebSettings.FORCE_DARK_OFF
+        }
         web.webViewClient = WebViewClient()
-        web.addJavascriptInterface(Bridge(this), "AndroidPlaner")
         web.loadUrl("file:///android_asset/index.html")
-
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        }
-        var opened = false
-        if (Build.VERSION.SDK_INT >= 31) {
-            val am = getSystemService(AlarmManager::class.java)
-            if (!am.canScheduleExactAlarms()) {
-                opened = true
-                Toast.makeText(this, "Разреши «Будильники и напоминания» для приложения", Toast.LENGTH_LONG).show()
-                try {
-                    startActivity(
-                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                            .setData(Uri.parse("package:" + packageName))
-                    )
-                } catch (e: Exception) {
-                }
-            }
-        }
-        if (Build.VERSION.SDK_INT >= 34 && !opened) {
-            val nm = getSystemService(NotificationManager::class.java)
-            if (!nm.canUseFullScreenIntent()) {
-                Toast.makeText(this, "Разреши показ на весь экран, чтобы будильник открывался сам", Toast.LENGTH_LONG).show()
-                try {
-                    startActivity(
-                        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
-                            .setData(Uri.parse("package:" + packageName))
-                    )
-                } catch (e: Exception) {
-                }
-            }
-        }
-        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
-            Toast.makeText(
-                this,
-                "Уведомления выключены. Включи их для приложения в настройках, иначе напоминания не придут",
-                Toast.LENGTH_LONG
-            ).show()
-        }
     }
 
     override fun onBackPressed() {
         if (web.canGoBack()) web.goBack() else super.onBackPressed()
-    }
-
-    /** Мост: страница вызывает AndroidPlaner.sync(json) при каждом изменении. */
-    class Bridge(private val ctx: Context) {
-
-        companion object {
-            private var shownSummary = false
-        }
-
-        private fun toast(text: String) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        @JavascriptInterface
-        fun sync(json: String) {
-            try {
-                val summary = AlarmStore.sync(ctx, json)
-                if (!shownSummary) {
-                    shownSummary = true
-                    toast("Поставлено: $summary")
-                }
-            } catch (e: Exception) {
-                toast("Ошибка будильника: ${e.message}")
-            }
-        }
-
-        @JavascriptInterface
-        fun takeFired(): String = try {
-            AlarmStore.takeFired(ctx)
-        } catch (e: Exception) {
-            "[]"
-        }
-    }
-}
-### FILE: app/src/main/java/com/planer/day/Notifier.kt
-package com.planer.day
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
-import android.os.Build
-import androidx.core.app.NotificationCompat
-
-object Notifier {
-    const val CH_ALARM = "alarm_v2"
-    const val CH_REMIND = "remind_v1"
-
-    fun notifId(key: String): Int = key.hashCode()
-
-    fun ensureChannels(ctx: Context) {
-        if (Build.VERSION.SDK_INT < 26) return
-        val nm = ctx.getSystemService(NotificationManager::class.java)
-        // Звук будильника играет ChallengeActivity по кругу, поэтому у канала звука нет
-        val alarm = NotificationChannel(CH_ALARM, "Будильник", NotificationManager.IMPORTANCE_HIGH)
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        alarm.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), attrs)
-        alarm.enableVibration(true)
-        nm.createNotificationChannel(alarm)
-        nm.createNotificationChannel(
-            NotificationChannel(CH_REMIND, "Напоминания", NotificationManager.IMPORTANCE_DEFAULT)
-        )
-    }
-
-    fun showAlarm(ctx: Context, key: String, label: String) {
-        ensureChannels(ctx)
-        val full = Intent(ctx, ChallengeActivity::class.java)
-            .putExtra("key", key)
-            .putExtra("label", label)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val pi = PendingIntent.getActivity(
-            ctx, notifId(key), full,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val builder = NotificationCompat.Builder(ctx, CH_ALARM)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(label.ifBlank { "Будильник" })
-            .setContentText("Реши задачку, чтобы выключить")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setOngoing(true)
-            .setFullScreenIntent(pi, true)
-            .setContentIntent(pi)
-            .setVibrate(longArrayOf(0, 900, 600))
-        val n = builder.build()
-        n.flags = n.flags or Notification.FLAG_INSISTENT
-        ctx.getSystemService(NotificationManager::class.java).notify(notifId(key), n)
-    }
-}
-### FILE: app/src/main/java/com/planer/day/ReminderReceiver.kt
-package com.planer.day
-
-import android.app.NotificationManager
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import androidx.core.app.NotificationCompat
-
-class ReminderReceiver : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, intent: Intent) {
-        val key = intent.getStringExtra("key") ?: return
-        Notifier.ensureChannels(ctx)
-        val n = NotificationCompat.Builder(ctx, Notifier.CH_REMIND)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(intent.getStringExtra("title") ?: "Напоминание")
-            .setContentText("Пора")
-            .setAutoCancel(true)
-            .build()
-        ctx.getSystemService(NotificationManager::class.java)
-            .notify(Notifier.notifId(key), n)
     }
 }
 ### FILE: app/src/main/res/drawable/ic_launcher_background.xml
@@ -1628,6 +897,17 @@ class ReminderReceiver : BroadcastReceiver() {
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
+### FILE: app/src/main/res/values-v29/themes.xml
+<resources>
+    <style name="AppTheme" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>
+### FILE: app/src/main/res/values/themes.xml
+<resources>
+    <style name="AppTheme" parent="android:Theme.DeviceDefault.NoActionBar" />
+</resources>
 ### FILE: build.gradle.kts
 plugins {
     id("com.android.application") version "8.5.2" apply false
