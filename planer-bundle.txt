@@ -72,6 +72,8 @@ dependencies {
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
     <application
         android:allowBackup="true"
         android:label="Планер дня"
@@ -106,18 +108,6 @@ body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-weight
 .orb{position:fixed;border-radius:50%;opacity:var(--orb);z-index:0;pointer-events:none}
 .orb.a{width:340px;height:340px;background:radial-gradient(circle,var(--accent) 0%,transparent 68%);top:-90px;left:-110px}
 .orb.b{width:280px;height:280px;background:radial-gradient(circle,var(--o2) 0%,transparent 68%);bottom:12%;right:-120px}
-/* орбы: медленный дрейф + мягкая пульсация (в настройках можно выключить по отдельности) */
-.orb{will-change:transform,opacity}
-@keyframes orbDriftA{0%,100%{transform:translate(0,0)}33%{transform:translate(70px,45px)}66%{transform:translate(25px,95px)}}
-@keyframes orbDriftB{0%,100%{transform:translate(0,0)}35%{transform:translate(-60px,-70px)}70%{transform:translate(-110px,-20px)}}
-@keyframes orbPulse{0%,100%{opacity:var(--orb);scale:1}50%{opacity:calc(var(--orb)*1.35);scale:1.12}}
-.orb.a{animation:orbDriftA 46s ease-in-out infinite,orbPulse 8s ease-in-out infinite}
-.orb.b{animation:orbDriftB 54s ease-in-out -14s infinite,orbPulse 11s ease-in-out -4s infinite}
-body.om .orb.a{animation:orbPulse 8s ease-in-out infinite}
-body.om .orb.b{animation:orbPulse 11s ease-in-out -4s infinite}
-body.op .orb.a{animation:orbDriftA 46s ease-in-out infinite}
-body.op .orb.b{animation:orbDriftB 54s ease-in-out -14s infinite}
-body.om.op .orb{animation:none}
 .noise{position:fixed;inset:0;opacity:.02;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
 header{padding:calc(env(safe-area-inset-top,0px) + 18px) 20px 10px}
@@ -210,8 +200,6 @@ body[data-tab=home] #starFly{display:block}
 #starFly svg{width:100%;height:100%;display:block;overflow:visible;filter:drop-shadow(0 1px 3px rgba(20,15,40,.55));animation:float 3.6s ease-in-out infinite}
 @keyframes float{50%{transform:translateY(-5px) rotate(4deg)}}
 .chip.lock{opacity:.45}
-body.noanim *,body.noanim *::before,body.noanim *::after{animation:none!important;transition:none!important}
-body.nosvg #starFly{display:none!important}
 </style>
 </head>
 <body data-tab="home">
@@ -284,18 +272,17 @@ body.nosvg #starFly{display:none!important}
     <section class="screen" id="s-sleep">
       <div class="glass-card">
         <div id="sTrack"></div>
-        <div class="muted" style="margin-top:12px;font-size:12px">Авторежим: если страница была скрыта или экран заблокирован больше 60 минут, при возврате сон записывается автоматически.</div>
+        <div class="muted" style="margin-top:12px;font-size:12px">Авторежим: ночью по данным экрана (если дан доступ), иначе по тому, как долго страница была скрыта.</div>
       </div>
       <div class="glass-card">
         <div class="h">Статистика</div>
         <div id="sStats"></div>
       </div>
+      <div class="glass-card" id="screenCard" style="display:none"><div class="h">Экранное время</div><div id="screenInfo"></div></div>
       </section>
   <section class="screen" id="s-settings">
       <div class="glass-card"><div class="h">Тема</div><div class="row" id="themeRow"></div></div>
       <div class="glass-card"><div class="h">Акцентный цвет</div><div class="row" id="swatches" style="gap:12px"></div></div>
-      <div class="glass-card"><div class="h">Фоновые орбы</div><div class="row" id="orbRow"></div></div>
-      <div class="glass-card"><div class="h">Анимации и графика</div><div class="row" id="gfxRow"></div><div class="muted" style="font-size:12px;margin-top:8px">Анимации выключают всё движение: Стара, орбы, переходы. SVG-графика отвечает за самого Стара.</div></div>
     </section>
   </main>
 
@@ -319,7 +306,7 @@ const MOOD_TXT = ['Плохо','Так себе','Нормально','Хоро�
 const MCOL = ['#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
 const CATS = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899'];
 const DAYS = [['Пн',1],['Вт',2],['Ср',3],['Чт',4],['Пт',5],['Сб',6],['Вс',0]];
-const DEF = {tasks:[], events:[], alarms:[], moods:{}, sleeps:[], accent:'purple', theme:'auto', petName:'Стар', skin:null, anim:true, svg:true, orbMove:true, orbPulse:true, active:{}, wear:{}, seen:[], filter:'all', sleepNow:null, hiddenAt:null, selDay:null};
+const DEF = {tasks:[], events:[], alarms:[], moods:{}, sleeps:[], accent:'purple', theme:'auto', petName:'Стар', active:{}, wear:{}, seen:[], filter:'all', sleepNow:null, hiddenAt:null, selDay:null};
 
 let S = Object.assign({}, DEF);
 try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e) {}
@@ -378,10 +365,10 @@ const RENDER = {};
 const TABS = ['home','tasks','cal','sleep'];
 let currentTab = 'home', prevTab = 'home';
 const curTab = () => currentTab;
-function show(tab, forceDir){
+function show(tab){
   const prev = curTab();
   if (tab === prev && document.querySelector('#s-'+tab).classList.contains('active')) return;
-  const dir = forceDir || (TABS.indexOf(tab) >= TABS.indexOf(prev) ? 'from-right' : 'from-left');
+  const dir = TABS.indexOf(tab) >= TABS.indexOf(prev) ? 'from-right' : 'from-left';
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.remove('from-left','from-right');
     s.classList.toggle('active', s.id === 's-'+tab);
@@ -402,7 +389,7 @@ function renderHome(){
   $('#moodRow').innerHTML = MOODS.map((m,i) =>
     `<button class="chip ${mood===i+1?'on':''}" data-m="${i+1}" style="font-size:24px;padding:6px 10px">${m}</button>`).join('');
   $('#moodRow').querySelectorAll('button').forEach(b => b.onclick = () => {
-    S.moods[today] = +b.dataset.m; save(); markActive(); renderHome(); renderPet();
+    S.moods[today] = +b.dataset.m; save(); markActive(); renderHome();
   });
   $('#moodMsg').textContent = mood ? 'Сегодня: ' + MOOD_TXT[mood-1] : 'Как ты сегодня?';
 
@@ -546,7 +533,7 @@ document.addEventListener('visibilitychange', () => {
     S.hiddenAt = Date.now(); save();
   } else if (S.hiddenAt){
     const away = Date.now() - S.hiddenAt;
-    if (away >= 60*60000 && !S.sleepNow) addSleep(S.hiddenAt + 60*60000, Date.now(), true);
+    if (away >= 60*60000 && !S.sleepNow && !screenOK()) addSleep(S.hiddenAt + 60*60000, Date.now(), true);
     S.hiddenAt = null; save();
     renderSleep();
   }
@@ -625,18 +612,14 @@ document.getElementById('nav').addEventListener('click', e => {
     t = null;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5 || !fast) return;
     const i = TABS.indexOf(curTab()); if (i < 0) return;
-    // по кругу: после последнего окна снова первое, и наоборот
-    const next = (i + (dx < 0 ? 1 : -1) + TABS.length) % TABS.length;
-    show(TABS[next], dx < 0 ? 'from-right' : 'from-left');
+    const next = dx < 0 ? i + 1 : i - 1;
+    if (next >= 0 && next < TABS.length) show(TABS[next]);
   }, {passive: true});
 })();
 
 /* ===================== СЕРИИ И ПИТОМЕЦ ===================== */
 const STAGES=[[0,'Пустота'],[2,'Искорка'],[7,'Звёздочка'],[12,'Звезда'],[22,'Красный гигант'],[42,'Сверхновая'],[82,'Чёрная дыра'],[102,'Галактика']];
-const GIFTS=[[10,'smile','Улыбка'],[20,'blush','Румянец'],[25,'glasses','Очки'],[30,'crown','Корона'],[35,'moon','Спутник'],[40,'wink','Подмигивание'],[50,'hat','Колпак'],[60,'bow','Бабочка'],[70,'sparkle','Искры'],[80,'halo','Нимб'],[90,'wings','Крылья']];
-const HEAD=['crown','hat','halo']; // на голове можно носить что-то одно
-const SKINS=[[20,'azure','Лазурь','#60a5fa'],[40,'mint','Мята','#4ade80'],[60,'rose','Роза','#f472b6'],[80,'lilac','Сирень','#c084fc'],[100,'ice','Лёд','#a5f3fc'],[120,'rainbow','Радуга','#ffffff']];
-let cosOpen=false; // раскрыт ли список косметики
+const GIFTS=[[15,'ring','Кольца'],[25,'glasses','Очки'],[30,'crown','Корона'],[35,'moon','Спутник']];
 function showToast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(showToast.t);showToast.t=setTimeout(()=>e.style.display='none',3500);}
 function markActive(){S.active=S.active||{};const k=streakDay();if(!S.active[k]){S.active[k]=1;save();renderPet();}}
 /*SD_START*/
@@ -680,72 +663,38 @@ function planetsSvg(n){
   return s;
 }
 /*PL_END*/
-function petSvg(i,best,np,mood){
-  const W=S.wear||{},has=id=>W[id]&&best>=GIFTS.find(g=>g[1]===id)[0];
-  const sk=SKINS.find(k=>k[1]===S.skin&&best>=k[0]),rb=!!sk&&sk[1]==='rainbow',K=sk&&!rb?sk[3]:null;
-  const RB='#f87171;#fbbf24;#4ade80;#60a5fa;#a78bfa;#f472b6;#f87171';
-  const an=a=>rb&&i>=1?`<animate attributeName="${a}" values="${RB}" dur="14s" repeatCount="indefinite"/>`:'';
-  const star=i===2||i===3,r=[12,4,9,18,28,24,22,20][i];
-  let C=['#9ca3af','#fde68a','#fcd34d','#fbbf24','#f97316','#f5d0fe','#08080f','#08080f'][i],G=i>=6?'#8b5cf6':C;
-  if(K&&i>=1){G=K;if(i<6)C=K;}
-  const Rb=i===0?14:i===1?15:star?r*1.55:r,ec=i>=6?'#e5e7eb':'#1a1a2e';
-  const a0=Rb*1.35+3,a1=a0+Math.max(Rb*.45,7);
+function petSvg(i,best,np){
+  const C=['#9ca3af','#fde68a','#fcd34d','#fbbf24','#f97316','#f5d0fe','#08080f','#08080f'][i],G=i>=6?'#8b5cf6':C,r=[12,4,9,16,28,24,22,20][i],W=S.wear||{};
+  const has=id=>W[id]&&best>=GIFTS.find(g=>g[1]===id)[0];
   const ln=(a,L,w)=>a.map(d=>`<path d="M80 ${80-L}V${80+L}" stroke="${C}" stroke-width="${w}" stroke-linecap="round" transform="rotate(${d} 80 80)"/>`).join('');
-  const pts=(R,q)=>Array.from({length:10},(_,k)=>{const a=(-90+k*36)*Math.PI/180,x=k%2?R*q:R;return (80+x*Math.cos(a)).toFixed(1)+','+(80+x*Math.sin(a)).toFixed(1);}).join(' ');
-  const tw=(R,off,col)=>[0,1,2,3].map(k=>{const a=(k*90+off)*Math.PI/180,x=80+R*Math.cos(a),y=80+R*Math.sin(a),q=Math.max(2.2,Rb*.13);return `<path d="M${(x-q).toFixed(1)} ${y.toFixed(1)}H${(x+q).toFixed(1)}M${x.toFixed(1)} ${(y-q).toFixed(1)}V${(y+q).toFixed(1)}" stroke="${col}" stroke-width="1.4" stroke-linecap="round"><animate attributeName="opacity" values=".15;1;.15" dur="2.4s" begin="-${(k*.6).toFixed(1)}s" repeatCount="indefinite"/></path>`;}).join('');
-  let s=`<svg viewBox="${i<=1?'40 40 80 80':i===2?'30 30 100 100':'0 0 160 160'}"><defs><radialGradient id="pg${i}"><stop offset="0" stop-color="${G}" stop-opacity=".85">${an('stop-color')}</stop><stop offset="1" stop-color="${G}" stop-opacity="0">${an('stop-color')}</stop></radialGradient><radialGradient id="mgb"><stop offset="0" stop-color="#60a5fa" stop-opacity="${mood===1?.55:.38}"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></radialGradient></defs>`;
-  if(i>=2&&has('wings'))[-1,1].forEach(d=>{const cx=80+d*r*(star?1.75:1.3),cy=80-r*.15,A=-d*30;s+=`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${r*.75}" ry="${r*.3}" fill="#e0e7ff" opacity=".9" transform="rotate(${A} ${cx.toFixed(1)} ${cy.toFixed(1)})"><animateTransform attributeName="transform" type="rotate" values="${A} ${cx.toFixed(1)} ${cy.toFixed(1)};${A*.55} ${cx.toFixed(1)} ${cy.toFixed(1)};${A} ${cx.toFixed(1)} ${cy.toFixed(1)}" dur="2.6s" repeatCount="indefinite"/></ellipse>`;});
+  let s=`<svg viewBox="${i<=2?'40 40 80 80':'0 0 160 160'}"><defs><radialGradient id="pg"><stop offset="0" stop-color="${G}" stop-opacity=".85"/><stop offset="1" stop-color="${G}" stop-opacity="0"/></radialGradient></defs>`;
+  if(has('ring'))s+=`<ellipse cx="80" cy="80" rx="${r*1.9+8}" ry="${r*.5+4}" fill="none" stroke="#a78bfa" stroke-width="3" transform="rotate(-20 80 80)"/>`;
   if(has('moon'))s+=`<circle cx="${80+r*1.8+14}" cy="${80-r-6}" r="5" fill="#cbd5e1"/>`;
-  // настроение: грустно — голубое свечение, весело — лучики и искры
-  if(mood&&mood<=2)s+=`<circle cx="80" cy="80" r="${Math.min(76,Rb*3+6).toFixed(1)}" fill="url(#mgb)"><animate attributeName="opacity" values=".6;1;.6" dur="5s" repeatCount="indefinite"/></circle>`;
-  if(mood>=4){const n=mood===5?12:8;s+=`<g stroke="#fde68a" stroke-width="${Math.max(1.6,Rb*.07).toFixed(1)}" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="45s" repeatCount="indefinite"/><animate attributeName="opacity" values=".5;.95;.5" dur="3.2s" repeatCount="indefinite"/>${Array.from({length:n},(_,k)=>{const L=(k%2&&mood===5)?a1-(a1-a0)*.45:a1;return `<path d="M80 ${(80-a0).toFixed(1)}V${(80-L).toFixed(1)}" transform="rotate(${k*360/n} 80 80)"/>`;}).join('')}</g>`;if(mood===5)s+=tw(a1+7,22,'#fef3c7');}
-  // дыхание и покачивание тела: у каждой стадии свой ритм [размах, период, наклон°, период наклона]
-  const AN=[[1.06,6,0,0],[1.1,2.4,0,0],[1.05,3.2,6,3.2],[1.06,3.6,3,4.4],[1.05,7,0,0],[1.07,2.8,0,0],[1.03,5,0,0],[1.03,5,0,0]][i],wob=AN[2],spl='calcMode="spline" keyTimes="0;.5;1" keySplines=".4 0 .6 1;.4 0 .6 1"';
-  s+=`<g transform="translate(80 80)"><g><animateTransform attributeName="transform" type="scale" values="1;${AN[0]};1" ${spl} dur="${AN[1]}s" repeatCount="indefinite"/>${wob?`<g><animateTransform attributeName="transform" type="rotate" values="${-wob} 0 0;${wob} 0 0;${-wob} 0 0" ${spl} dur="${AN[3]}s" repeatCount="indefinite"/>`:''}<g transform="translate(-80 -80)">`;
-  if(i===0){
-    s+=`<circle cx="80" cy="80" r="26" fill="url(#pg0)" opacity=".8"/><g fill="${C}"><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="48s" repeatCount="indefinite"/><circle cx="62" cy="68" r="1.4" opacity=".55"/><circle cx="99" cy="72" r="1.1" opacity=".45"/><circle cx="96" cy="96" r="1.6" opacity=".5"/><circle cx="66" cy="94" r="1" opacity=".4"/><circle cx="80" cy="58" r="1.2" opacity=".45"/></g><g stroke="${C}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".85"><path d="M72 81q3.5 3.5 7 0"/><path d="M81 81q3.5 3.5 7 0"/></g><g fill="${C}" font-family="sans-serif" font-size="7"><text x="93" y="70" opacity=".7">z<animate attributeName="opacity" values=".2;.8;.2" dur="3s" repeatCount="indefinite"/></text><text x="100" y="62" font-size="5" opacity=".5">z<animate attributeName="opacity" values=".1;.6;.1" dur="3s" begin="-1.2s" repeatCount="indefinite"/></text></g>`;
-  }else{
-    s+=`<circle cx="80" cy="80" r="${Math.max(r*2.6,i===1?24:0)}" fill="url(#pg${i})"/>`;
+  if(i===0)s+=`<circle cx="80" cy="80" r="3" fill="${C}" opacity=".5"/><circle cx="56" cy="62" r="1.5" fill="${C}" opacity=".35"/><circle cx="106" cy="100" r="2" fill="${C}" opacity=".35"/>`;
+  else{
+    s+=`<circle cx="80" cy="80" r="${r*2.6}" fill="url(#pg)"/>`;
     if(i===7)s+=planetsSvg(np||0);
-    if(i===5)s+=`<g><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="60s" repeatCount="indefinite"/><animate attributeName="opacity" values=".65;1;.65" dur="2.8s" repeatCount="indefinite"/>${ln([0,45,90,135],46,3)}</g>`;
-    if(i>=6)s+=`<ellipse cx="80" cy="80" rx="${r*2.2}" ry="${r*.55}" fill="none" stroke="${K||'#c4b5fd'}" stroke-width="4" opacity=".85" transform="rotate(-15 80 80)">${an('stroke')}</ellipse><ellipse cx="80" cy="80" rx="${r*2.2}" ry="${r*.55}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="5 31" transform="rotate(-15 80 80)"><animate attributeName="stroke-dashoffset" from="0" to="-36" dur="2.2s" repeatCount="indefinite"/></ellipse>`;
-    if(i===1)s+=`<g><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="26s" repeatCount="indefinite"/><path d="M80 65Q83 77 95 80Q83 83 80 95Q77 83 65 80Q77 77 80 65Z" fill="${C}">${an('fill')}<animate attributeName="opacity" values=".75;1;.75" dur="2.4s" repeatCount="indefinite"/></path></g><circle cx="80" cy="80" r="3.4" fill="#fffbe6"/>`;
-    else if(star)s+=`<polygon points="${pts(r*1.4,.5)}" fill="${C}" stroke="${C}" stroke-width="${(r*.3).toFixed(1)}" stroke-linejoin="round">${an('fill')}${an('stroke')}</polygon>`;
-    else s+=`<circle cx="80" cy="80" r="${r}" fill="${i>=6?'#000':C}"${i>=6?' stroke="#c4b5fd" stroke-width="2"':''}>${i<6?an('fill'):''}</circle>`;
-    if(i>=2){
-      const e=Math.max(2,r*.09),dx=r*.36,y=80-r*.05,bl=`<animate attributeName="ry" values="${e};${e};${(e*.15).toFixed(2)};${e}" keyTimes="0;.93;.96;1" dur="${(4+i*.35).toFixed(2)}s" repeatCount="indefinite"/>`;
-      s+=`<g fill="${ec}"><ellipse cx="${80-dx}" cy="${y}" rx="${e}" ry="${e}">${bl}</ellipse>${has('wink')?`<path d="M${80+dx-e*1.5} ${y+e*.4}Q${80+dx} ${y-e*1.8} ${80+dx+e*1.5} ${y+e*.4}" fill="none" stroke="${ec}" stroke-width="${Math.max(1.2,e*.6)}" stroke-linecap="round"/>`:`<ellipse cx="${80+dx}" cy="${y}" rx="${e}" ry="${e}">${bl}</ellipse>`}</g>`;
-      if(has('blush'))s+=`<g fill="#fb7185" opacity=".6"><ellipse cx="${80-r*.62}" cy="${80+r*.2}" rx="${r*.17}" ry="${r*.1}"/><ellipse cx="${80+r*.62}" cy="${80+r*.2}" rx="${r*.17}" ry="${r*.1}"/></g>`;
-      if(has('smile'))s+=`<path d="M${80-r*.28} ${80+r*.2}Q80 ${80+r*.52} ${80+r*.28} ${80+r*.2}" fill="none" stroke="${ec}" stroke-width="${Math.max(1.2,r*.07)}" stroke-linecap="round"/>`;
-      if(has('glasses')){const q=r*.3;s+=`<g stroke="${i>=6?'#4b5563':'#0b0b14'}" stroke-width="1.9" fill="rgba(5,5,12,.92)"><circle cx="${80-dx}" cy="${y}" r="${q}"/><circle cx="${80+dx}" cy="${y}" r="${q}"/><path d="M${80-dx+q} ${y}H${80+dx-q}"/></g>`;}
-      const hd=HEAD.find(has),hb=star?1.2:.78;
-      if(hd==='hat'){const hy=80-r*hb;s+=`<g transform="rotate(-12 80 ${hy})"><polygon fill="#f472b6" points="${80-r*.38},${hy} ${80+r*.38},${hy} 80,${hy-r*.95}"/><path d="M${80-r*.2} ${hy-r*.4}L${80+r*.2} ${hy-r*.4}" stroke="#fde68a" stroke-width="${Math.max(1.2,r*.07)}"/><circle cx="80" cy="${hy-r*.95}" r="${Math.max(1.5,r*.1)}" fill="#fde68a"/></g>`;}
-      if(hd==='crown'){const x=80-r*.5,hy=80-r*hb;s+=`<polygon fill="#fbbf24" points="${x},${hy} ${x},${hy-r*.4} ${x+r*.25},${hy-r*.2} 80,${hy-r*.5} ${80+r*.25},${hy-r*.2} ${80+r*.5},${hy-r*.4} ${80+r*.5},${hy}"/>`;}
-      if(hd==='halo'){const hy=80-r*(hb+.55);s+=`<ellipse cx="80" cy="${hy}" rx="${r*.55}" ry="${Math.max(1.6,r*.14)}" fill="none" stroke="#fde68a" stroke-opacity=".3" stroke-width="${Math.max(4,r*.3)}"/><ellipse cx="80" cy="${hy}" rx="${r*.55}" ry="${Math.max(1.6,r*.14)}" fill="none" stroke="#fde68a" stroke-width="${Math.max(1.8,r*.13)}"/>`;}
-      if(has('bow')){const by=80+r*(star?.95:.78),w=r*.42,h=r*.2;s+=`<g fill="#ef4444"><polygon points="${80-w},${by-h} ${80-w},${by+h} 80,${by}"/><polygon points="${80+w},${by-h} ${80+w},${by+h} 80,${by}"/><circle cx="80" cy="${by}" r="${Math.max(1.4,r*.1)}" fill="#b91c1c"/></g>`;}
-    }
+    if(i===1)s+=ln([0,90],10,2); if(i===2)s+=ln([0,90],18,3); if(i===5)s+=ln([0,45,90,135],46,3);
+    if(i>=6)s+=`<ellipse cx="80" cy="80" rx="${r*2.2}" ry="${r*.55}" fill="none" stroke="#c4b5fd" stroke-width="4" opacity=".85" transform="rotate(-15 80 80)"/>`;
+    s+=`<circle cx="80" cy="80" r="${r}" fill="${i>=6?'#000':C}"${i>=6?' stroke="#c4b5fd" stroke-width="2"':''}/>`;
+    if(i>=2){const e=Math.max(1.8,r*.09),dx=r*.36;s+=`<g fill="${i>=6?'#e5e7eb':'#1a1a2e'}"><circle cx="${80-dx}" cy="${80-r*.05}" r="${e}"/><circle cx="${80+dx}" cy="${80-r*.05}" r="${e}"/></g>`;}
+    if(i>=2&&has('glasses')){const dx=r*.36,y=80-r*.05,q=r*.3;s+=`<g stroke="#e5e7eb" stroke-width="1.6" fill="rgba(0,0,0,.6)"><circle cx="${80-dx}" cy="${y}" r="${q}"/><circle cx="${80+dx}" cy="${y}" r="${q}"/><path d="M${80-dx+q} ${y}H${80+dx-q}"/></g>`;}
+    if(i>=2&&has('crown')){const x=80-r*.5,y=80-r*.78;s+=`<polygon fill="#fbbf24" points="${x},${y} ${x},${y-r*.4} ${x+r*.25},${y-r*.2} 80,${y-r*.5} ${80+r*.25},${y-r*.2} ${80+r*.5},${y-r*.4} ${80+r*.5},${y}"/>`;}
   }
-  s+=wob?'</g></g></g></g>':'</g></g></g>';
-  if(has('sparkle'))s+=tw(Rb*1.9+6,45,'#fef3c7');
-  if(S.anim===false)s=s.replace(/<animate(?:Transform)?\b[^>]*\/>/g,'');
   return s+'</svg>';
 }
 function renderPet(){
   const el=$('#petCard'); if(!el)return;
   const {cur,best,today,left}=streak(); let i=0; STAGES.forEach((s,j)=>{if(cur>=s[0])i=j;});
   S.wear=S.wear||{};S.seen=S.seen||[];
-  const fresh=GIFTS.filter(g=>best>=g[0]&&!S.seen.includes(g[1])),freshK=SKINS.filter(k=>best>=k[0]&&!S.seen.includes(k[1]));
-  if(fresh.length||freshK.length){
-    fresh.forEach(g=>{S.seen.push(g[1]);if(!(HEAD.includes(g[1])&&HEAD.some(h=>S.wear[h])))S.wear[g[1]]=true;});
-    freshK.forEach(k=>{S.seen.push(k[1]);S.skin=k[1];});
-    save();showToast([fresh.length?'Новый предмет: '+fresh.map(g=>g[2]).join(', '):'',freshK.length?'Новый окрас: '+freshK.map(k=>k[2]).join(', '):''].filter(Boolean).join(' · '));
-  }
+  const fresh=GIFTS.filter(g=>best>=g[0]&&!S.seen.includes(g[1]));
+  if(fresh.length){fresh.forEach(g=>{S.seen.push(g[1]);S.wear[g[1]]=true;});save();showToast('Новый предмет: '+fresh.map(g=>g[2]).join(', '));}
   const a=STAGES[i],n=STAGES[i+1],pc=i===7?planets(cur):0,nd=i===7?PLANET_AT[pc]:(n&&n[0]),from=i===7&&pc?PLANET_AT[pc-1]:a[0],pct=nd?Math.round((cur-from)/(nd-from)*100):100;
   const hint=!today?(cur?'Сегодня ещё не засчитан, день обновляется в 5:21':'Сделай что-нибудь сегодня, чтобы начать серию'):i===7?(nd?`Следующая планета через ${nd-cur} дн.`:'Все 16 планет собраны'):n?`До «${n[1]}»: ${n[0]-cur} дн.`:'Высшая стадия';
-  el.innerHTML=`${petHead()}<div class="row" style="flex-wrap:nowrap;gap:14px"><div class="grow"><div style="font-size:20px">${i===7?a[1]+' · планет '+pc+'/16':a[1]}</div><div class="muted">Серия: ${cur} дн. · рекорд ${best} · ❄ ${left}/2</div><div class="bar" style="margin:10px 0 6px"><i style="width:${pct}%"></i></div><div class="muted" style="font-size:12px">${hint}</div></div></div><div class="row" style="margin-top:12px"><button class="chip ${cosOpen?'on':''}" data-cos="1">✨ Косметика ${GIFTS.filter(g=>best>=g[0]).length+SKINS.filter(k=>best>=k[0]).length}/${GIFTS.length+SKINS.length} ${cosOpen?'▴':'▾'}</button></div>${cosOpen?`<div class="muted" style="font-size:12px;margin:10px 0 6px">Предметы</div><div class="row">${GIFTS.map(g=>best>=g[0]?`<button class="chip ${S.wear[g[1]]?'on':''}" data-w="${g[1]}">${g[2]}</button>`:`<span class="chip lock">🔒 ${g[2]} · ${g[0]} дн.</span>`).join('')}</div><div class="muted" style="font-size:12px;margin:10px 0 6px">Окрас</div><div class="row"><button class="chip ${S.skin?'':'on'}" data-s="">Стандарт</button>${SKINS.map(k=>best>=k[0]?`<button class="chip ${S.skin===k[1]?'on':''}" data-s="${k[1]}"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:${k[1]==='rainbow'?'conic-gradient(#f87171,#fbbf24,#4ade80,#60a5fa,#a78bfa,#f472b6,#f87171)':k[3]}"></i>${k[2]}</button>`:`<span class="chip lock">🔒 ${k[2]} · ${k[0]} дн.</span>`).join('')}</div>`:''}`;
-  starSet(petSvg(i,best,pc,(S.moods||{})[dayKey()]));
+  el.innerHTML=`${petHead()}<div class="row" style="flex-wrap:nowrap;gap:14px"><div class="grow"><div style="font-size:20px">${i===7?a[1]+' · планет '+pc+'/16':a[1]}</div><div class="muted">Серия: ${cur} дн. · рекорд ${best} · ❄ ${left}/2</div><div class="bar" style="margin:10px 0 6px"><i style="width:${pct}%"></i></div><div class="muted" style="font-size:12px">${hint}</div></div></div><div class="row" style="margin-top:12px">${GIFTS.map(g=>best>=g[0]?`<button class="chip ${S.wear[g[1]]?'on':''}" data-w="${g[1]}">${g[2]}</button>`:`<span class="chip lock">🔒 ${g[2]} · ${g[0]} дн.</span>`).join('')}</div>`;
+  starSet(petSvg(i,best,pc));
 }
-$('#petCard').addEventListener('click',e=>{if(e.target.closest('[data-cos]')){cosOpen=!cosOpen;renderPet();return;}const sb=e.target.closest('[data-s]');if(sb){S.skin=sb.dataset.s||null;save();renderPet();return;}const b=e.target.closest('[data-w]');if(b){const k=b.dataset.w,on=!S.wear[k];if(on&&HEAD.includes(k))HEAD.forEach(h=>S.wear[h]=false);S.wear[k]=on;save();renderPet();}});
+$('#petCard').addEventListener('click',e=>{const b=e.target.closest('[data-w]');if(b){S.wear[b.dataset.w]=!S.wear[b.dataset.w];save();renderPet();}});
 
 /* ===== имя питомца ===== */
 let petEditing=false;
@@ -760,42 +709,82 @@ $('#petCard').addEventListener('click',e=>{const b=e.target.closest('[data-pn]')
 $('#petCard').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='petNameIn')petNameSave();});
 
 /* ===== Стар плавает по главному экрану ===== */
-function starSet(svg){const el=$('#starFly');if(el)el.innerHTML=S.svg===false?'':svg;}
+function starSet(svg){const el=$('#starFly');if(el)el.innerHTML=svg;}
 function starMove(first){
   const el=$('#starFly');if(!el)return;
   const W=innerWidth,H=innerHeight,Z=64,top=110,bot=Math.max(top+10,H-120-Z);
   const x=8+Math.random()*Math.max(10,W-Z-16),y=top+Math.random()*(bot-top);
-  if(S.anim===false){clearTimeout(starMove.t);if(!el.style.transform)el.style.transform=`translate(${x}px,${y}px)`;return;} // без анимаций Стар стоит на месте
   if(first){el.style.transition='none';el.style.transform=`translate(${x}px,${y}px)`;void el.offsetWidth;el.style.transition='';}
   else el.style.transform=`translate(${x}px,${y}px)`;
   clearTimeout(starMove.t);starMove.t=setTimeout(starMove,5500+Math.random()*3500);
 }
 
 /* ===================== НАСТРОЙКИ ===================== */
-function applyOrbs(){document.body.classList.toggle('om',S.orbMove===false);document.body.classList.toggle('op',S.orbPulse===false);}
-function applyGfx(){document.body.classList.toggle('noanim',S.anim===false);document.body.classList.toggle('nosvg',S.svg===false);}
 function renderSettings(){
-  applyOrbs();applyGfx();
-  $('#gfxRow').innerHTML=[['anim','Анимации',S.anim!==false],['svg','SVG-графика Стара',S.svg!==false]].map(([k,l,on])=>`<button class="chip ${on?'on':''}" data-g="${k}">${l}: ${on?'вкл':'выкл'}</button>`).join('');
-  $('#orbRow').innerHTML=[['move','Движение',S.orbMove!==false],['pulse','Мерцание',S.orbPulse!==false]].map(([k,l,on])=>`<button class="chip ${on?'on':''}" data-o="${k}">${l}: ${on?'вкл':'выкл'}</button>`).join('');
   $('#themeRow').innerHTML=[['auto','Авто'],['dark','Тёмная'],['light','Светлая']].map(([k,l])=>`<button class="chip ${S.theme===k?'on':''}" data-t="${k}">${l}</button>`).join('');
   $('#swatches').innerHTML=ACC.map(a=>`<button class="swatch ${S.accent===a.k?'on':''}" style="background:hsl(${a.h} ${a.s}% 60%)" data-a="${a.k}"></button>`).join('');
 }
 $('#s-settings').addEventListener('click',e=>{
-  const t=e.target.closest('[data-t]'),a=e.target.closest('[data-a]'),o=e.target.closest('[data-o]'),g=e.target.closest('[data-g]');
-  if(g){const k=g.dataset.g;S[k]=S[k]===false;save();applyGfx();renderSettings();renderPet();if(S.anim!==false)starMove();}
-  if(o){const k=o.dataset.o==='move'?'orbMove':'orbPulse';S[k]=S[k]===false;save();renderSettings();}
+  const t=e.target.closest('[data-t]'),a=e.target.closest('[data-a]');
   if(t){S.theme=t.dataset.t;applyAccent();save();renderSettings();}
   if(a){setAccent(a.dataset.a);renderSettings();}
 });
 $('#gear').onclick=()=>show(currentTab==='settings'?prevTab:'settings');
+
+/* ===================== ЭКРАННОЕ ВРЕМЯ И СОН ===================== */
+/*SCR_START*/
+const SCREEN_LAG=60, SCREEN_MIN=180, SCREEN_BLIP=10; // сон начинается через 60 мин после выключения экрана; ночной промежуток от 3 ч; вспышки экрана до 10 мин не прерывают сон
+function screenSleeps(ev,sleeps){
+  const offs=[];let off=null;
+  ev.forEach(([t,k])=>{if(k===0){if(off===null)off=t;}else if(off!==null){offs.push([off,t]);off=null;}});
+  const M=[];offs.forEach(o=>{const L=M[M.length-1];if(L&&o[0]-L[1]<SCREEN_BLIP*60000)L[1]=o[1];else M.push([o[0],o[1]]);});
+  const out=[];
+  M.forEach(([a,b])=>{
+    const hr=new Date(a).getHours();
+    if(b-a<SCREEN_MIN*60000||!(hr>=19||hr<7))return;
+    const s=a+SCREEN_LAG*60000;
+    if(sleeps.concat(out).some(x=>x.start<b&&x.end>s))return;
+    out.push({start:s,end:b});
+  });
+  return out;
+}
+function screenOnMin(ev,z){
+  let on=null,sum=0;const before=ev.filter(([t])=>t<z).pop(),day=ev.filter(([t])=>t>=z);
+  if(before?before[1]===1:(day.length&&day[0][1]===0))on=z;
+  day.forEach(([t,k])=>{if(k===1){if(on===null)on=t;}else if(on!==null){sum+=t-on;on=null;}});
+  if(on!==null)sum+=Math.max(0,Date.now()-on);
+  return sum/60000;
+}
+/*SCR_END*/
+const screenOK=()=>{try{return !!(window.AndroidScreen&&AndroidScreen.hasAccess());}catch(e){return false;}};
+function screenEvents(){try{return (JSON.parse(AndroidScreen.screenEvents(Date.now()-3*864e5))||[]).sort((a,b)=>a[0]-b[0]);}catch(e){return [];}}
+function syncScreen(){
+  if(!screenOK()||S.sleepNow)return;
+  const add=screenSleeps(screenEvents(),S.sleeps);
+  add.forEach(x=>addSleep(x.start,x.end,true));
+  if(add.length)renderSleep();
+}
+function renderScreen(){
+  const c=$('#screenCard');if(!c||!window.AndroidScreen)return;
+  c.style.display='block';
+  if(!screenOK()){
+    $('#screenInfo').innerHTML='<div class="muted" style="margin-bottom:10px">Чтобы считать сон по экрану, включи для приложения доступ «Статистика использования»</div><button class="btn" id="screenAsk">Включить доступ</button>';
+    $('#screenAsk').onclick=()=>{try{AndroidScreen.openAccessSettings();}catch(e){}};
+    return;
+  }
+  const z=new Date();z.setHours(0,0,0,0);
+  const m=Math.round(screenOnMin(screenEvents(),z.getTime()));
+  const last=S.sleeps.filter(x=>x.auto).pop();
+  $('#screenInfo').innerHTML=`<div>Сегодня экран включён: ${Math.floor(m/60)}ч ${pad(m%60)}м</div><div class="muted" style="margin-top:6px">${last?`Последний сон по экрану: ${fmtDur(last.minutes)} (${hhmm(new Date(last.start).getHours()*60+new Date(last.start).getMinutes())}–${hhmm(new Date(last.end).getHours()*60+new Date(last.end).getMinutes())})`:'Сон запишется сам, когда экран пробудет выключенным ночью от 3 часов'}</div>`;
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncScreen();renderScreen();}});
 
 /* ===================== СТАРТ ===================== */
 RENDER.home = () => { renderHome(); renderPet(); };
 RENDER.settings = renderSettings;
 RENDER.tasks = renderTasks;
 RENDER.cal = renderCal;
-RENDER.sleep = renderSleep;
+RENDER.sleep = () => { renderSleep(); syncScreen(); renderScreen(); };
 
 function renderAll(){
   applyAccent(S.accent);
@@ -805,6 +794,7 @@ renderAll();
 tick();
 setInterval(tick, 1000);
 starMove(true);
+syncScreen(); renderScreen();
 
 </script>
 </body>
@@ -833,11 +823,77 @@ class MainActivity : Activity() {
             web.settings.forceDark = WebSettings.FORCE_DARK_OFF
         }
         web.webViewClient = WebViewClient()
+        web.addJavascriptInterface(ScreenBridge(this), "AndroidScreen")
         web.loadUrl("file:///android_asset/index.html")
     }
 
     override fun onBackPressed() {
         if (web.canGoBack()) web.goBack() else super.onBackPressed()
+    }
+}
+### FILE: app/src/main/java/com/planer/day/ScreenBridge.kt
+package com.planer.day
+
+import android.app.AppOpsManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Process
+import android.provider.Settings
+import android.webkit.JavascriptInterface
+import org.json.JSONArray
+
+/** Мост для страницы: читает из системы, когда включался и гас экран. Данные берутся задним числом, фоновый сервис не нужен. */
+class ScreenBridge(private val ctx: Context) {
+
+    @JavascriptInterface
+    fun hasAccess(): Boolean = try {
+        val ops = ctx.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= 29) {
+            ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.packageName)
+        } else {
+            ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.packageName)
+        }
+        mode == AppOpsManager.MODE_ALLOWED
+    } catch (e: Exception) {
+        false
+    }
+
+    /** JSON вида [[время_мс, 1], [время_мс, 0]]: 1 экран включился, 0 экран погас. */
+    @JavascriptInterface
+    fun screenEvents(fromMs: Long): String {
+        val out = JSONArray()
+        try {
+            val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val now = System.currentTimeMillis()
+            val events = usm.queryEvents(maxOf(fromMs, now - 7L * 24 * 3600 * 1000), now)
+            val e = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(e)
+                when (e.eventType) {
+                    15 -> out.put(JSONArray().put(e.timeStamp).put(1)) // SCREEN_INTERACTIVE
+                    16 -> out.put(JSONArray().put(e.timeStamp).put(0)) // SCREEN_NON_INTERACTIVE
+                }
+            }
+        } catch (ex: Exception) {
+        }
+        return out.toString()
+    }
+
+    @JavascriptInterface
+    fun openAccessSettings() {
+        val base = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            ctx.startActivity(Intent(base).setData(Uri.parse("package:" + ctx.packageName)))
+        } catch (e: Exception) {
+            try {
+                ctx.startActivity(base)
+            } catch (e2: Exception) {
+            }
+        }
     }
 }
 ### FILE: app/src/main/res/drawable/ic_launcher_background.xml
